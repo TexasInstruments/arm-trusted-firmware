@@ -129,13 +129,9 @@ void bl31_platform_setup(void)
 #ifdef K3_TI_SCI_MAILBOX
 	INFO("AM62L: bl31 setup\n");
 	k3_sysctrler_boot_notification_response();
-	/* Platforms that use mailbox for ti_sci
-	 * are expected to use SCMI only.
-	 * There exist no other known TI K3 platforms today
-	 * that use SCMI without TI SCI MAILBOX.
-	 * Hence, putting the scmi server init under similar
-	 * condition.
-	 */
+#endif
+
+#ifdef TI_USE_SCMI
 	ti_init_scmi_server();
 #endif
 

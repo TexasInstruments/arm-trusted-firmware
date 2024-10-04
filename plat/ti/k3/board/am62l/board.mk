@@ -15,6 +15,9 @@ USE_COHERENT_MEM	:=	0
 K3_TI_SCI_MAILBOX	:=	1
 $(eval $(call add_define,K3_TI_SCI_MAILBOX))
 
+TI_USE_SCMI	:=	1
+$(eval $(call add_define,TI_USE_SCMI))
+
 ifeq (${IMAGE_BL1}, 1)
 override ENABLE_PIE := 0
 endif
