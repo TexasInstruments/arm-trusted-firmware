@@ -37,6 +37,12 @@
 #define AM62L_SCMI_CLOCK_OUTPUT AM62L_SCMI_CLOCK
 #define AM62L_SCMI_CLOCK_MUX AM62L_SCMI_CLOCK
 
+/*
+ * Our HSDIVs can support any range of divisions, so it's difficult
+ * to derive a fix number of clock rates array per device.
+ * There isn't as such a fixed rates array per device.
+ * Hence, use a range from 0 to maximum supported clock frequency.
+ */
 static unsigned long am62l_rates[] = {
   0, 2000000000, 1,
 };
@@ -536,17 +542,12 @@ ti_scmi_clock_t *ti_scmi_get_clock(uint32_t agent_id __unused,
 	if (clock_id < ARRAY_SIZE(clock_table))
 		table = &clock_table[clock_id];
 
-	if (table)
-		return table;
-	else
-		return NULL;
+	return table;
 }
 
 size_t plat_scmi_clock_count(unsigned int agent_id)
 {
-	VERBOSE("scmi_clock_count agent_id = %d\n \n", agent_id);
 	return ARRAY_SIZE(clock_table);
-	/* return ARRAY_SIZE(soc_devgroups[PM_DEVGRP_00].dev_clk_data); */
 }
 
 int32_t plat_scmi_clock_set_rate(unsigned int agent_id,
@@ -555,18 +556,17 @@ int32_t plat_scmi_clock_set_rate(unsigned int agent_id,
 {
 	VERBOSE("scmi_clock_set_rate scmi_id = %d rate = %lu\n", scmi_id, rate);
 	ti_scmi_clock_t *clock;
+	int32_t ret;
+
 	clock = ti_scmi_get_clock(agent_id, scmi_id);
 	if (clock == 0)
 		return 0;
 
-	/* uint32_t rate = device_clk_get_freq(&soc_devices[clock.dev_id], clock.clock_id, rate, rate, rate); */
-
-	/* uint32_t set_rate = device_clk_query_freq(&soc_devices[clock->dev_id], clock->clock_id, rate, rate, rate) ; */
-	int32_t ret = scmi_handler_clock_set_rate(clock->dev_id, clock->clock_id, rate);
+	ret = scmi_handler_clock_set_rate(clock->dev_id, clock->clock_id, rate);
         if (ret) {
-                /* VERBOSE("query succesful freq with scmi_id = %d rate = %d\n" , scmi_id, set_rate); */
-                /* set_rate = device_clk_set_freq(&soc_devices[clock->dev_id], clock->clock_id, rate, rate, rate) ; */
-                VERBOSE("set succesful freq with scmi_id = %d rate = %ld\n" , scmi_id, rate);
+                WARN("%s: Failed to set freq with scmi_id = %d rate = %ld\n",
+		     __func__, scmi_id, rate);
+		return SCMI_DENIED;
         }
 	
 	return SCMI_SUCCESS;
@@ -576,42 +576,14 @@ int32_t plat_scmi_clock_set_rate(unsigned int agent_id,
 const char *plat_scmi_clock_get_name(unsigned int agent_id,
 				     unsigned int scmi_id)
 {
-	VERBOSE("get name agent_id = %d, scmi_id = %d\n", agent_id, scmi_id);
 	ti_scmi_clock_t *clock;
 
 	clock = ti_scmi_get_clock(agent_id, scmi_id);
-	if (clock == 0)
-		return NULL;
+	if (clock)
+		return clock->name;
 
-	VERBOSE("%s %d\n",clock->name, scmi_id);
-	return clock->name;
+	return NULL;
 }
-
-/* int32_t plat_scmi_clock_rates_array(unsigned int agent_id,
- * 				    unsigned int scmi_id,
- * 				    unsigned long *rates,
- * 				    size_t *nb_elts,
- * 				    uint32_t start_idx)
- * {
- * 	VERBOSE("scmi_clock_get_rates_array agent_id = %d, scmi_id = %d\n", agent_id, scmi_id);
- * 	unsigned long *rate_table;
- * 	ti_scmi_clock_t *clock;
- * 	clock = ti_scmi_get_clock(agent_id, scmi_id);
- * 	if (clock == 0)
- * 		return SCMI_NOT_FOUND;
- * 	
- * 	rate_table = clock->rate_table;
- * 	if (rate_table == 0)
- * 		return SCMI_NOT_SUPPORTED;
- * 	
- * 	/\* const struct clk_range *range;
- * 	 * range = clk_get_range_wrapper(scmi_id);
- *          * 
- * 	 * if (range == 0)
- * 	 *   	return SCMI_NOT_SUPPORTED; *\/
- * 
- * 	return SCMI_NOT_SUPPORTED;
- * } */
 
 int32_t plat_scmi_clock_rates_by_step(unsigned int agent_id __unused,
 				      unsigned int scmi_id __unused,
@@ -621,34 +593,27 @@ int32_t plat_scmi_clock_rates_by_step(unsigned int agent_id __unused,
 	ti_scmi_clock_t *clock;
 
 	clock = ti_scmi_get_clock(agent_id, scmi_id);
-	if (clock == 0)
+	if (!clock)
 		return SCMI_NOT_SUPPORTED;
 
 	steps[0] = clock->rates[0];
 	steps[1] = clock->rates[1];
 	steps[2] = clock->rates[2];
- 
+
 	return SCMI_SUCCESS;
 }
 
 unsigned long plat_scmi_clock_get_rate(unsigned int agent_id,
 					unsigned int scmi_id)
 {
-	VERBOSE("scmi_clock_get_rate agent_id = %d, scmi_id = %d\n", agent_id, scmi_id);
-	/* uint32_t rate = clk_get_freq_wrapper(scmi_id); */
 	ti_scmi_clock_t *clock;
+	uint64_t rate;
 	clock = ti_scmi_get_clock(agent_id, scmi_id);
-	if (clock == 0)
-		return 0;
+	if (!clock)
+		return SCMI_NOT_SUPPORTED;
 
-        VERBOSE("scmi_clock_get_rate dev_id = %d, clock_id = %d\n", clock->dev_id, clock->clock_id);
-
-	/* uint32_t rate = device_clk_get_freq(&soc_devices[clock->dev_id], clock->clock_id); */
-	uint64_t rate = scmi_handler_clock_get_rate(clock->dev_id, clock->clock_id);
-	VERBOSE("scmi_clock_get_rate clkid = %d rate = %ld\n" , scmi_id, rate);
+	rate = scmi_handler_clock_get_rate(clock->dev_id, clock->clock_id);
 	return rate;
-	/* Dare you lie about the clock below?? */
-	/* return 25000000; */
 }
 
 int32_t plat_scmi_clock_get_state(unsigned int agent_id,
@@ -656,11 +621,10 @@ int32_t plat_scmi_clock_get_state(unsigned int agent_id,
 {
 	ti_scmi_clock_t *clock;
 
-	VERBOSE("scmi_clock_get_state agent_id = %d, scmi_id = %d\n", agent_id, scmi_id);
 	clock = ti_scmi_get_clock(agent_id, scmi_id);
-	if (clock == 0)
-		return 0;
-	        
+	if (!clock)
+		return SCMI_NOT_SUPPORTED;
+
 	return SCMI_SUCCESS;
 }
 
@@ -669,19 +633,19 @@ int32_t plat_scmi_clock_set_state(unsigned int agent_id,
 				  bool enable_not_disable)
 {
 
-	VERBOSE("scmi_clock_set_state agent_id = %d, scmi_id = %d, en? %d\n", agent_id, scmi_id, enable_not_disable);
-        ti_scmi_clock_t *clock;
-	clock = ti_scmi_get_clock(agent_id, scmi_id);
-	if (clock == 0)
-		return 0;
+	ti_scmi_clock_t *clock;
 
+	clock = ti_scmi_get_clock(agent_id, scmi_id);
+	if (!clock)
+		return SCMI_NOT_SUPPORTED;
+
+	VERBOSE("%s: agent_id = %d, scmi_id = %d, enable: %d\n", __func__, agent_id, scmi_id, enable_not_disable);
 	if(enable_not_disable) {
-                return scmi_handler_clock_prepare(clock->dev_id, clock->clock_id);
-        }
-        else {
+		return scmi_handler_clock_prepare(clock->dev_id, clock->clock_id);
+        } else {
                 return scmi_handler_clock_unprepare(clock->dev_id, clock->clock_id);
         }
-	
+
 	return SCMI_INVALID_PARAMETERS;
 }
 

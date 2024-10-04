@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2024, Texas Instruments Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -151,18 +151,12 @@ size_t plat_scmi_pd_count(unsigned int agent_id __unused)
 const char *plat_scmi_pd_get_name(unsigned int agent_id __unused,
 				  unsigned int pd_id)
 {
-
-	VERBOSE("scmi_pd_name agent_id = %d pd_id=%d id=%d name = %s\n", agent_id, pd_id, scmi_power_domains[pd_id].id, scmi_power_domains[pd_id].name);
 	return scmi_power_domains[pd_id].name;
 }
 
 unsigned int plat_scmi_pd_get_state(unsigned int agent_id __unused,
 				    unsigned int pd_id __unused)
 {
-	VERBOSE("%s pd_id=%d and dev_id=%d\n",__func__, pd_id,scmi_power_domains[pd_id].id);
-        if(scmi_power_domains[pd_id].id == AM62LX_DEV_MMCSD0)
-                VERBOSE("--------mmc sd0\n");
-	
         return scmi_handler_device_state_get(scmi_power_domains[pd_id].id);
 }
 
@@ -171,25 +165,23 @@ int32_t plat_scmi_pd_set_state(unsigned int agent_id __unused,
 			       unsigned int pd_id,
 			       unsigned int state)
 {
-        VERBOSE("%s agent_id = %d, pd = %d, state to set = 0x%x\n",__func__, agent_id, pd_id, state);
-        VERBOSE("%s pd_id=%d and dev_id=%d\n",__func__, pd_id,scmi_power_domains[pd_id].id);
-        
-        VERBOSE("device current state = %d\n", scmi_handler_device_state_get(scmi_power_domains[pd_id].id));
-
-        if(scmi_handler_device_state_get(scmi_power_domains[pd_id].id) == POWER_STATE_ON) {
-                if(state == POWER_STATE_OFF) {
-                        VERBOSE("disabling pd\n");
-                        scmi_handler_device_state_set_off(scmi_power_domains[pd_id].id);
-                }
+	int ret = SCMI_SUCCESS;
+	ret = scmi_handler_device_state_get(scmi_power_domains[pd_id].id);
+	/*
+	 * First, check if the device state even needs to be changed, otherwise do nothing and return
+	 * SCMI_SUCCESS
+	 */
+        if(ret == POWER_STATE_ON && state == POWER_STATE_OFF) {
+		VERBOSE("\n%s: Disabling PD: agent_id = %d, pd = %d, state to set = 0x%x\n",
+		__func__, agent_id, pd_id, state);
+		ret = scmi_handler_device_state_set_off(scmi_power_domains[pd_id].id);
+        } else if(ret == POWER_STATE_OFF && state == POWER_STATE_ON){
+			VERBOSE("\n%s: Enabling PD: agent_id = %d, pd = %d, state to set = 0x%x\n",
+				__func__, agent_id, pd_id, state);
+                        ret = scmi_handler_device_state_set_on(scmi_power_domains[pd_id].id);
+        } else {
+		ret = SCMI_SUCCESS;
         }
-        else {
-                if(state == POWER_STATE_ON) {
-                        VERBOSE("enabling pd\n");
-                        scmi_handler_device_state_set_on(scmi_power_domains[pd_id].id);
-                }               
-        }
 
-        VERBOSE("device current state = %d\n", scmi_handler_device_state_get(scmi_power_domains[pd_id].id));
-        
-        return SCMI_SUCCESS;
+        return ret;
 }
