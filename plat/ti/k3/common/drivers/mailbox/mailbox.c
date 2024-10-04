@@ -19,7 +19,7 @@
 
 #include "mailbox.h"
 
-void init_mbox(void) {
+void k3_sysctrler_boot_notification_response(void) {
 	uint32_t i = 0;
 	uint64_t rcv_addr;
 

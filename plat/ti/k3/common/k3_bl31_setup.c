@@ -22,13 +22,6 @@
 #include <ti_sci.h>
 #include <plat_scmi_def.h>
 #include <mailbox.h>
-#include <clk.h>
-#include <clk_wrapper.h>
-#include <device.h>
-#include <devices.h>
-#include <clocks.h>
-#include <device_clk.h>
-#include <device_pm.h>
 
 #define ADDR_DOWN(_adr) (_adr & XLAT_ADDR_MASK(2U))
 #define SIZE_UP(_adr, _sz) (round_up((_adr + _sz), XLAT_BLOCK_SIZE(2U)) - ADDR_DOWN(_adr))
@@ -135,16 +128,15 @@ void bl31_platform_setup(void)
 
 #ifdef K3_TI_SCI_MAILBOX
 	INFO("AM62L: bl31 setup\n");
-	init_mbox();
+	k3_sysctrler_boot_notification_response();
+	/* Platforms that use mailbox for ti_sci
+	 * are expected to use SCMI only.
+	 * There exist no other known TI K3 platforms today
+	 * that use SCMI without TI SCI MAILBOX.
+	 * Hence, putting the scmi server init under similar
+	 * condition.
+	 */
 	ti_init_scmi_server();
-
-	clk_init();
-        if(devices_init()){
-	  WARN("Devices init failed!\n");
-	}
-	else {
-	  INFO("devices init passed\n");
-	}
 #endif
 
 	ret = ti_sci_get_revision(&version);

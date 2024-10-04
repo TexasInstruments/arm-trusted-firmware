@@ -15,5 +15,5 @@
 #define AM62L_RSVD_SRAM_BASE		UL(0x70814000)
 #define AM62L_SRAM_SIZE			UL(0x2000)
 
-extern void init_mbox(void);
+extern void k3_sysctrler_boot_notification_response(void);
 
