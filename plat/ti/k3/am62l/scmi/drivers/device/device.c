@@ -77,11 +77,6 @@ static int32_t device_init(struct device *dev)
 			device_set_retention(dev, true);
 		}
 
-		/*
-		 * FIXME: Set reset isolation flag as marked by LPSC
-		 * FIXME: Set local reset bit as marked by LPSC
-		 */
-
 		if (((data->flags & DEVD_FLAG_DRV_DATA) != 0U) &&
 		    ((data->flags & DEVD_FLAG_DO_INIT) != 0U)) {
 			const struct drv *drvp = to_drv_data(data)->drv;
@@ -115,7 +110,6 @@ int32_t devices_init(void)
 		for (idx = 0U; idx < soc_device_count; idx++) {
 			devgrp_t devgrp;
 			dev = &soc_devices[idx];
-
 			if (dev->initialized != 0U) {
 				continue;
 			}
@@ -255,9 +249,10 @@ int32_t devices_deinit_flags(void)
 			continue;
 		}
 		dev = &soc_devices[i];
-		dev->flags = 0;
 		dev->exclusive = 0;
-		if ((dev->initialized != 0U)) {
+		/* Deinitialize flags only for devices that have been set by a host */
+		if ((dev->flags != 0U) && (dev->initialized != 0U)) {
+			dev->flags = 0U;
 			device_clear_flags(dev);
 			dev->initialized = 0;
 		}

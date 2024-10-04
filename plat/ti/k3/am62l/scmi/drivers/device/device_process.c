@@ -209,7 +209,6 @@ int32_t get_device_handler(struct tisci_msg_get_device_resp *msg_recv)
 		if ((dev->flags & DEV_FLAG_ENABLED(host_idx)) != 0UL) {
 			programmed_state = TISCI_MSG_VALUE_DEVICE_SW_STATE_ON;
 		} else if ((dev->flags & DEV_FLAG_RETENTION) != 0UL) {
-		  
 			programmed_state = TISCI_MSG_VALUE_DEVICE_SW_STATE_RETENTION;
 		} else {
 			programmed_state = TISCI_MSG_VALUE_DEVICE_SW_STATE_AUTO_OFF;
@@ -262,6 +261,16 @@ int32_t set_device_resets_handler(uint32_t *msg_recv)
 	mmr_unlock_all();
 
 	ret = device_prepare_exclusive(req->hdr.host, id, NULL, &dev);
+
+	if (ret == SUCCESS) {
+		if (resets <= 3U) {
+			ret = SUCCESS;
+		} else {
+			pm_trace(TRACE_PM_ACTION_INVALID_STATE, resets);
+			ret = EFAIL;
+		}
+	}
+
 	if (ret == SUCCESS) {
 		device_set_resets(dev, resets);
 	}

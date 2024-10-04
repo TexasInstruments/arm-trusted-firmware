@@ -427,8 +427,6 @@ int32_t clk_div_init(struct clk *clkp)
 			if (drv_div->get_div(clkp) != 1U) {
 				skip_hw_init = true;
 			}
-                        else {
-                        }
 		}
 	}
 

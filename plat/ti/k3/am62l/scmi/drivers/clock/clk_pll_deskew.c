@@ -501,7 +501,7 @@ static uint32_t clk_pll_deskew_get_freq_internal(struct clk *clock_ptr)
 		}
 
 		if (ret64 > (uint64_t) ULONG_MAX) {
-			/* FIXME: Handle PLL value overflow */
+			/* Cap overflow */
 			ret = (uint32_t) ULONG_MAX;
 		} else {
 			ret = (uint32_t) ret64;

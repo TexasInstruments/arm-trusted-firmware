@@ -87,10 +87,6 @@ uint32_t soc_device_get_state(struct device *dev)
 	return ret;
 }
 
-/*
- * FIXME: Reset ISO and local reset are per module, but those are often
- * shared by several devices.
- */
 static void soc_device_set_reset_iso_internal(const struct soc_device_data *dev, bool enable)
 {
 	struct device *psc_dev = psc_lookup((psc_idx_t) dev->psc_idx);
@@ -304,53 +300,59 @@ static void soc_device_disable_internal(const struct soc_device_data *dev)
 static void soc_device_disable_internal_flags_iterate(struct device *psc_dev, struct lpsc_module *module)
 {
 	const struct psc_drv_data *psc = to_psc_drv_data(get_drv_data(psc_dev));
+	const struct lpsc_module_data *data;
 	uint32_t idx;
 	struct lpsc_module *module_p = module;
 
-	if (module != NULL) {
-		module->use_count = 0U;
-		module->ret_count = 0U;
-		module->pwr_up_enabled = 0U;
-		module->pwr_up_ret = 0U;
-		module->sw_state = 0U;
-		module->loss_count = 0U;
-		module->mrst_active = 0U;
-		module->sw_mrst_ret = false;
+	if (module_p != NULL) {
+		module_p->use_count = 0U;
+		module_p->ret_count = 0U;
+		module_p->pwr_up_enabled = 0U;
+		module_p->pwr_up_ret = 0U;
+		module_p->sw_state = 0U;
+		module_p->loss_count = 0U;
+		module_p->mrst_active = 0U;
+		module_p->sw_mrst_ret = false;
 		for (idx = 0U; idx < ARRAY_SIZE(psc->data->mods_enabled); idx++) {
 			psc->data->mods_enabled[idx] = 0U;
 		}
 	}
-	for (idx = 0U; idx < psc->pd_count; idx++) {
-		struct psc_pd *pd = psc->powerdomains + idx;
-		pd->use_count = 0U;
-		pd->pwr_up_enabled = false;
-	}
-	for (idx = 0; idx < psc->module_count; idx++) {
-		struct lpsc_module *temp = psc->modules + idx;
-		temp->use_count = 0U;
-		temp->ret_count = 0U;
-		temp->pwr_up_enabled = 0U;
-		temp->pwr_up_ret = 0U;
-		temp->sw_state = 0U;
-		temp->sw_mrst_ret = false;
-		temp->loss_count = 0U;
-		temp->mrst_active = 0U;
-	}
 
-	psc->data->pds_enabled = 0U;
-	idx = lpsc_module_idx(psc_dev, module);
-	const struct lpsc_module_data *data = psc->mod_data + idx;
+	if (psc != NULL) {
+		for (idx = 0U; idx < psc->pd_count; idx++) {
+			struct psc_pd *pd = psc->powerdomains + idx;
+			pd->use_count = 0U;
+			pd->pwr_up_enabled = false;
+		}
+		for (idx = 0; idx < psc->module_count; idx++) {
+			struct lpsc_module *temp = psc->modules + idx;
+			temp->use_count = 0U;
+			temp->ret_count = 0U;
+			temp->pwr_up_enabled = 0U;
+			temp->pwr_up_ret = 0U;
+			temp->sw_state = 0U;
+			temp->sw_mrst_ret = false;
+			temp->loss_count = 0U;
+			temp->mrst_active = 0U;
+		}
 
-	if ((data->flags & LPSC_DEPENDS) != 0UL) {
-		const struct psc_drv_data *depends_psc = psc;
-		struct device *depends_dev = psc_dev;
+		psc->data->pds_enabled = 0U;
+		idx = lpsc_module_idx(psc_dev, module_p);
+		data = psc->mod_data + idx;
 
-		depends_dev = psc_lookup((psc_idx_t) data->depends_psc_idx);
-		depends_psc = to_psc_drv_data(get_drv_data(depends_dev));
+		if ((data->flags & LPSC_DEPENDS) != 0UL) {
+			const struct psc_drv_data *depends_psc = psc;
+			struct device *depends_dev = psc_dev;
 
-		if (depends_dev && module) {
-			module_p = depends_psc->modules + (lpsc_idx_t) data->depends;
-			soc_device_disable_internal_flags_iterate(depends_dev, module_p);
+			if ((depends_dev != NULL) || (depends_psc != NULL)) {
+				depends_dev = psc_lookup((psc_idx_t) data->depends_psc_idx);
+				depends_psc = to_psc_drv_data(get_drv_data(depends_dev));
+			}
+
+			if (depends_dev && module_p) {
+				module_p = depends_psc->modules + (lpsc_idx_t) data->depends;
+				soc_device_disable_internal_flags_iterate(depends_dev, module_p);
+			}
 		}
 	}
 }

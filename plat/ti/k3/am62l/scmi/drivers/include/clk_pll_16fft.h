@@ -46,5 +46,6 @@ struct clk_data_pll_16fft {
 extern const struct clk_drv clk_drv_pll_16fft;
 extern const struct clk_drv_div clk_drv_div_pll_16fft_postdiv;
 extern const struct clk_drv_div clk_drv_div_pll_16fft_hsdiv;
+extern const struct clk_drv_div clk_drv_div_pll_16fft_postdiv_hsdiv;
 
 #endif

@@ -1,35 +1,9 @@
 /*
- * DMSC firmware
+ * Clock PLL firmware
  *
- * Copyright (C) 2018-2023, Texas Instruments Incorporated
+ * Copyright (C) 2024, Texas Instruments Incorporated
  * All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * *  Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * *  Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * *  Neither the name of Texas Instruments Incorporated nor the names of
- * its contributors may be used to endorse or promote products derived
- * from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <clk_pll_16fft.h>
@@ -176,9 +150,6 @@ static void clk_pll_16fft_cal_option3(const struct clk_data_pll_16fft *pll)
 
 	cal = readl(pll->base + (uint32_t) PLL_16FFT_CAL_CTRL(pll->idx));
 
-	/* Enable calibration for FRACF */
-	cal |= PLL_16FFT_CAL_CTRL_CAL_EN;
-
 	/* Enable fast cal mode */
 	cal |= PLL_16FFT_CAL_CTRL_FAST_CAL;
 
@@ -189,48 +160,24 @@ static void clk_pll_16fft_cal_option3(const struct clk_data_pll_16fft *pll)
 	cal &= ~PLL_16FFT_CAL_CTRL_CAL_CNT_MASK;
 	cal |= (uint32_t) 2U << (uint32_t) PLL_16FFT_CAL_CTRL_CAL_CNT_SHIFT;
 
+	/* Set CAL_IN to 0 */
+	cal &= ~PLL_16FFT_CAL_CTRL_CAL_IN_MASK;
+
 	/* Note this register does not readback the written value. */
 	ti_clk_writel(cal, (uint32_t) pll->base + (uint32_t) PLL_16FFT_CAL_CTRL(pll->idx));
-}
 
-/*
- * \brief Implement the option 4 PLL calibration method.
- *
- * This calibration method relies on an existing calibration value and allows
- * continual background calibration.
- *
- * \param pll The PLL data associated with this FRACF PLL.
- */
-static void clk_pll_16fft_cal_option4(const struct clk_data_pll_16fft *pll)
-{
-	uint32_t calout;
-	uint32_t cal;
-	uint32_t stat;
+	/* Wait 1us before enabling the CAL_EN field */
+	osal_delay(1UL); /* Wait 1us */
 
 	cal = readl(pll->base + (uint32_t) PLL_16FFT_CAL_CTRL(pll->idx));
-	stat = readl(pll->base + (uint32_t) PLL_16FFT_CAL_STAT(pll->idx));
 
-	/* Read generated calibration value */
-	calout = stat & PLL_16FFT_CAL_STAT_CAL_OUT_MASK;
-	calout >>= PLL_16FFT_CAL_STAT_CAL_OUT_SHIFT;
-
-	/* Program stored calibration value */
-	cal &= ~PLL_16FFT_CAL_CTRL_CAL_IN_MASK;
-	cal |= calout << PLL_16FFT_CAL_CTRL_CAL_IN_SHIFT;
-
-	/* Disable calibration bypass */
-	cal &= ~PLL_16FFT_CAL_CTRL_CAL_BYP;
-
-	/* Disable fast cal mode */
-	cal &= ~PLL_16FFT_CAL_CTRL_FAST_CAL;
-
-	/* Set CALCNT to 7 */
-	cal &= ~PLL_16FFT_CAL_CTRL_CAL_CNT_MASK;
-	cal |= (uint32_t) 7U << (uint32_t) PLL_16FFT_CAL_CTRL_CAL_CNT_SHIFT;
+	/* Enable calibration for FRACF */
+	cal |= PLL_16FFT_CAL_CTRL_CAL_EN;
 
 	/* Note this register does not readback the written value. */
 	ti_clk_writel(cal, (uint32_t) pll->base + (uint32_t) PLL_16FFT_CAL_CTRL(pll->idx));
 }
+
 static void clk_pll_16fft_disable_cal(const struct clk_data_pll_16fft *pll)
 {
 	uint32_t cal, stat;
@@ -246,10 +193,6 @@ static void clk_pll_16fft_disable_cal(const struct clk_data_pll_16fft *pll)
 }
 #else
 static void clk_pll_16fft_cal_option3(const struct clk_data_pll_16fft *pll __attribute__((unused)))
-{
-	return;
-}
-static void clk_pll_16fft_cal_option4(const struct clk_data_pll_16fft *pll __attribute__((unused)))
 {
 	return;
 }
@@ -419,44 +362,66 @@ static bool clk_pll_16fft_wait_for_lock(struct clk *clock_ptr)
 		uint32_t cfg;
 		cfg = readl(pll->base + (uint32_t) PLL_16FFT_CFG(pll->idx));
 		pll_type = (cfg & PLL_16FFT_CFG_PLL_TYPE_MASK) >> PLL_16FFT_CFG_PLL_TYPE_SHIFT;
+
+		cal = readl(pll->base + (uint32_t) PLL_16FFT_CAL_CTRL(pll->idx));
+		cal_en = (cal & PLL_16FFT_CAL_CTRL_CAL_EN);
+
 		if (success &&
-		    (pll_type == PLL_16FFT_CFG_PLL_TYPE_FRACF) && (pllfm == 0UL)) {
+		    (pll_type == PLL_16FFT_CFG_PLL_TYPE_FRACF) && (pllfm == 0UL) && (cal_en == 1UL)) {
 			/*
 			 * Wait for calibration lock.
 			 *
 			 * Lock should occur within:
 			 *
-			 *	32 * 2^(4+CALCNT) / PFD
-			 *       2048 / PFD
+			 *	170 * 2^(5+CALCNT) / PFD
+			 *      21760 / PFD
 			 *
-			 * CALCNT = 2, PFD = 5-50MHz. This gives a range of 41uS to
-			 * 410uS depending on PFD frequency. Using the above logic
-			 * we calculate a maximum expected 41000 loop cycles.
+			 * CALCNT = 2, PFD = 5-50MHz. This gives a range of 0.435mS to
+			 * 4.35mS depending on PFD frequency.
 			 *
-			 * The recommend timeout for CALLOCK to go high is 2.2 ms
+			 * Be conservative and assume each loop takes 10 cycles and we run at a
+			 * max of 1GHz. That gives 435000 loop cycles. We may end up waiting
+			 * longer than neccessary for timeout, but that should be ok.
+			 *
+			 * The recommend timeout for CALLOCK to go high is 4.35 ms
 			 */
 			success = false;
-			for (i = 0U; i < (2200U * 100U); i++) {
+			for (i = 0U; i < (4350U * 100U); i++) {
 				if (clk_pll_16fft_check_cal_lock(pll)) {
 					success = true;
 					break;
 				}
 			}
-		}
-		/* Disable calibration in the fractional mode of the FRACF PLL based on data
-		 * from silicon and simulation data.
-		 */
-		if (success && (pll_type == PLL_16FFT_CFG_PLL_TYPE_FRACF)
-		    && (pllfm == 0UL)) {
-			uint32_t cal;
-			cal = readl(pll->base + (uint32_t) PLL_16FFT_CAL_CTRL(pll->idx));
-			if ((cal & PLL_16FFT_CAL_CTRL_FAST_CAL) != 0U) {
-				/*
-				 * Fast cal enabled indicates we were performing
-				 * option 3. Now that we have a calibration value,
-				 * switch to option 4.
-				 */
-				clk_pll_16fft_cal_option4(pll);
+
+			/* In case of cal lock failure, operate without calibration */
+			if (success != true) {
+				success = true;
+				/* Disable PLL */
+				err = clk_pll_16fft_disable_pll(pll);
+				if (err != SUCCESS) {
+					success = false;
+				}
+
+				if (success == true) {
+					/* Disable Calibration */
+					clk_pll_16fft_disable_cal(pll);
+
+					/* Enable PLL */
+					err = clk_pll_16fft_enable_pll(pll);
+					if (err != SUCCESS) {
+						success = false;
+					}
+				}
+
+				if (success == true) {
+					/* Wait for PLL Lock */
+					for (i = 0U; i < (150U * 100U); i++) {
+						if (clk_pll_16fft_check_lock(pll)) {
+							success = true;
+							break;
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1259,12 +1224,7 @@ static int32_t clk_pll_16fft_init_internal(struct clk *clock_ptr)
 	const struct clk_data *clock_data = clk_get_data(clock_ptr);
 	const struct clk_data_pll_16fft *pll;
 	const struct clk_data_pll *data_pll;
-	uint32_t freq_ctrl1;
-	uint32_t ctrl;
-	uint32_t cfg;
-	uint32_t pll_type;
 	uint32_t i;
-	uint32_t pllfm;
 	int32_t ret = SUCCESS;
 	bool skip_hw_init = false;
 
@@ -1274,6 +1234,14 @@ static int32_t clk_pll_16fft_init_internal(struct clk *clock_ptr)
 				data);
 	pll = container_of(data_pll, const struct clk_data_pll_16fft,
 			   data_pll);
+
+	/*
+	* Unlock write access. Note this register does not readback the
+	* written value.
+	*/
+	ti_clk_writel((uint32_t) PLL_16FFT_LOCKKEY0_VALUE, (uint32_t) pll->base + (uint32_t) PLL_16FFT_LOCKKEY0(pll->idx));
+	ti_clk_writel((uint32_t) PLL_16FFT_LOCKKEY1_VALUE, (uint32_t) pll->base + (uint32_t) PLL_16FFT_LOCKKEY1(pll->idx));
+
 	/*
 	 * In order to honor the CLK_DATA_FLAG_NO_HW_REINIT flag when set,
 	 * we must check if the clk is enabled, and if so, skip re-setting
@@ -1285,92 +1253,21 @@ static int32_t clk_pll_16fft_init_internal(struct clk *clock_ptr)
 	}
 
 	if (skip_hw_init == false) {
-		/*
-		* Unlock write access. Note this register does not readback the
-		* written value.
-		*/
-		ti_clk_writel((uint32_t) PLL_16FFT_LOCKKEY0_VALUE, (uint32_t) pll->base + (uint32_t) PLL_16FFT_LOCKKEY0(pll->idx));
-		ti_clk_writel((uint32_t) PLL_16FFT_LOCKKEY1_VALUE, (uint32_t) pll->base + (uint32_t) PLL_16FFT_LOCKKEY1(pll->idx));
-		cfg = readl(pll->base + (uint32_t) PLL_16FFT_CFG(pll->idx));
-		ctrl = readl(pll->base + (uint32_t) PLL_16FFT_CTRL(pll->idx));
+		ret = pll_init(clock_ptr);
+	}
 
-		pll_type = (cfg & PLL_16FFT_CFG_PLL_TYPE_MASK) >> PLL_16FFT_CFG_PLL_TYPE_SHIFT;
-		freq_ctrl1 = readl(pll->base + (uint32_t) PLL_16FFT_FREQ_CTRL1(pll->idx));
-		pllfm = freq_ctrl1 & PLL_16FFT_FREQ_CTRL1_FB_DIV_FRAC_MASK;
-		pllfm >>= PLL_16FFT_FREQ_CTRL1_FB_DIV_FRAC_SHIFT;
-		/* Disable calibration in the fractional mode of the FRACF PLL based on
-		 * data from silicon and simulation data.
+	if (ret == SUCCESS) {
+		/*
+		 * Find and program hsdiv defaults.
+		 *
+		 * HSDIV defaults must be programmed before programming the
+		 * PLL since their power on default is /1. Most DCO
+		 * frequencies will exceed clock rate maximums of the HSDIV
+		 * outputs.
+		 *
+		 * We walk through the clock tree to find all the clocks
+		 * with the hsdiv driver who have this PLL for a parent.
 		 */
-		if ((pll_type == PLL_16FFT_CFG_PLL_TYPE_FRACF) && (pllfm == 0UL)) {
-			uint32_t cal;
-			uint32_t stat;
-
-			cal = readl(pll->base + (uint32_t) PLL_16FFT_CAL_CTRL(pll->idx));
-			stat = readl(pll->base + (uint32_t) PLL_16FFT_CAL_STAT(pll->idx));
-
-			/* Check if calibration is already enabled and locked */
-			if (((cal & PLL_16FFT_CAL_CTRL_CAL_EN) != 0U) &&
-			    ((stat & PLL_16FFT_CAL_STAT_CAL_LOCK) != 0U)) {
-				/* Yes, go straight to option 4 */
-				clk_pll_16fft_cal_option4(pll);
-			} else {
-				/* No, get an initial calibration via option 3 */
-				clk_pll_16fft_cal_option3(pll);
-			}
-		}
-
-		/* Make sure PLL is enabled */
-		if ((ctrl & PLL_16FFT_CTRL_PLL_EN) == 0U) {
-			ctrl |= PLL_16FFT_CTRL_PLL_EN;
-			ti_clk_writel(ctrl, pll->base + (uint32_t) PLL_16FFT_CTRL(pll->idx));
-			osal_delay(1UL); /* Wait 1us */
-		}
-
-		/* Always bypass if we lose lock */
-		ctrl |= PLL_16FFT_CTRL_BYP_ON_LOCKLOSS;
-
-		/* Prefer glitchless bypass */
-		if ((ctrl & PLL_16FFT_CTRL_INTL_BYP_EN) != 0U) {
-			ctrl |= PLL_16FFT_CTRL_BYPASS_EN;
-			ctrl &= ~PLL_16FFT_CTRL_INTL_BYP_EN;
-		}
-
-		/* Always enable output if PLL */
-		ctrl |= PLL_16FFT_CTRL_CLK_POSTDIV_EN;
-
-		/* Currently unused by all PLLs */
-		ctrl &= ~PLL_16FFT_CTRL_CLK_4PH_EN;
-
-		/* Make sure we have fractional support if required */
-		if (pllfm != 0UL) {
-			ctrl |= PLL_16FFT_CTRL_DSM_EN;
-		} else {
-			ctrl &= ~PLL_16FFT_CTRL_DSM_EN;
-		}
-
-		ti_clk_writel(ctrl, (uint32_t) pll->base + (uint32_t) PLL_16FFT_CTRL(pll->idx));
-
-		/* Enable all HSDIV outputs */
-		for (i = 0U; (i < 16U) && (ret == SUCCESS); i++) {
-			/* Enable HSDIV output if present */
-			if ((PLL_16FFT_CFG_HSDIV_PRSNC(i) & cfg) != 0UL) {
-				ctrl = readl(pll->base + (uint32_t) PLL_16FFT_HSDIV_CTRL(pll->idx, i));
-				ctrl |= PLL_16FFT_HSDIV_CTRL_CLKOUT_EN;
-				ti_clk_writel(ctrl, (uint32_t) pll->base + (uint32_t) PLL_16FFT_HSDIV_CTRL(pll->idx, i));
-			}
-		}
-
-		/*
-		* Find and program hsdiv defaults.
-		*
-		* HSDIV defaults must be programmed before programming the
-		* PLL since their power on default is /1. Most DCO
-		* frequencies will exceed clock rate maximums of the HSDIV
-		* outputs.
-		*
-		* We walk through the clock tree to find all the clocks
-		* with the hsdiv driver who have this PLL for a parent.
-		*/
 		for (i = 0; (i < soc_clock_count) && (ret == SUCCESS); i++) {
 			const struct clk_data *sub_data = soc_clock_data + i;
 			struct clk *sub_clk = soc_clocks + i;
@@ -1388,7 +1285,6 @@ static int32_t clk_pll_16fft_init_internal(struct clk *clock_ptr)
 				/* Do Nothing */
 			}
 		}
-		ret = pll_init(clock_ptr);
 	}
 
 	/*
@@ -1656,10 +1552,28 @@ static uint32_t clk_pll_16fft_hsdiv_set_freq(struct clk *clock_ptr,
 										     query, changed);
 
 				if (ret == 0U) {
+					/*
+					 * First try setting the exact target_hz frequency
+					 * without using the min and max range. We do this
+					 * because some times even when the target frequency
+					 * is acheivable, the calculations will result
+					 * in choosing a value other than the target from the
+					 * range provided.
+					 */
 					ret = clk_pll_16fft_internal_set_freq(pll_clk, clock_ptr,
 									      &pll_16fft_hsdiv_data,
-									      target_hz, min_hz, max_hz,
+									      target_hz, target_hz, target_hz,
 									      query, changed);
+					/*
+					 * If the previous step failed in setting the exact
+					 * target_hz, use the min and max range provided.
+					 */
+					if (ret == 0U) {
+						ret = clk_pll_16fft_internal_set_freq(pll_clk, clock_ptr,
+										      &pll_16fft_hsdiv_data,
+										      target_hz, min_hz, max_hz,
+										      query, changed);
+					}
 				}
 			}
 		}

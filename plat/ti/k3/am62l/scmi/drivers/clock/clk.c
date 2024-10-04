@@ -323,10 +323,7 @@ static void clk_set_freq_trace(struct clk *clkp __attribute__((unused)), uint32_
 		  TRACE_PM_VAL_CLOCK_ID_MASK));
 }
 
-/*
- * FIXME: When called directly from device_clk_set_freq, it can change
- * the freq without regard for children of the clock
- */
+
 uint32_t clk_set_freq(struct clk *clkp, uint32_t target_hz,
 		 uint32_t min_hz, uint32_t max_hz, bool query,
 		 bool *changed)
@@ -337,6 +334,8 @@ uint32_t clk_set_freq(struct clk *clkp, uint32_t target_hz,
 	*changed = false;
 
 	if ((clkp->flags & CLK_FLAG_INITIALIZED) == 0U) {
+		ret = 0U;
+	} else if ((clk_data_p->flags & CLK_DATA_FLAG_BLOCK_FREQ_CHANGE) != 0U) {
 		ret = 0U;
 	} else if (clk_data_p->drv->set_freq != NULL) {
 		ret = clk_data_p->drv->set_freq(clkp, target_hz, min_hz,
@@ -356,7 +355,6 @@ uint32_t clk_get_freq(struct clk *clkp)
 	const struct clk_data *clk_data_p = clk_get_data(clkp);
 	uint32_t ret;
 
-        
 	if ((clkp->flags & CLK_FLAG_INITIALIZED) == 0U) {
 		ret = 0U;
 	} else if (clk_data_p->drv->get_freq != NULL) {
@@ -397,13 +395,17 @@ bool clk_set_state(struct clk *clkp, bool enable)
 	const struct clk_data *clk_data_p = clk_get_data(clkp);
 	bool ret;
 
-	if ((clkp->flags & CLK_FLAG_INITIALIZED) == 0U) {
-		/* defer action */
-		ret = true;
-	} else if (clk_data_p->drv->set_state == NULL) {
-		ret = true;
+	if (clk_data_p != NULL) {
+		if ((clkp->flags & CLK_FLAG_INITIALIZED) == 0U) {
+			/* defer action */
+			ret = true;
+		} else if (clk_data_p->drv->set_state == NULL) {
+			ret = true;
+		} else {
+			ret = clk_data_p->drv->set_state(clkp, enable);
+		}
 	} else {
-		ret = clk_data_p->drv->set_state(clkp, enable);
+		ret = true;
 	}
 
 	return ret;
@@ -561,17 +563,32 @@ int32_t clk_deinit_pm_devgrp(uint8_t pm_devgrp)
 	uint32_t i;
 	uint32_t clk_id_start;
 	uint32_t clk_id_end = 0U;
+	uint8_t pm_devgrp_val = pm_devgrp;
 
-	clk_id_start = soc_devgroups[pm_devgrp].clk_idx;
+	clk_id_start = soc_devgroups[pm_devgrp_val].clk_idx;
 
-	if (pm_devgrp >= soc_devgroup_count) {
+	if (pm_devgrp_val >= soc_devgroup_count) {
 		ret = -EINVAL;
-	} else if (pm_devgrp == (soc_devgroup_count - 1U)) {
+	} else if (pm_devgrp_val == (soc_devgroup_count - 1U)) {
 		/* Last devgrp's last clock id is the same as last of all clock ids */
 		clk_id_end = soc_clock_count;
 	} else {
 		/* Chosen devgrp's last clock id is next devgrp's first clock id */
-		clk_id_end = soc_devgroups[pm_devgrp + 1U].clk_idx;
+
+		/* Loop through all the devgrp till we find valid devgrp */
+		while (pm_devgrp_val < soc_devgroup_count) {
+			/* Check if next dev grp is valid devgrp*/
+			if (soc_devgroups[pm_devgrp_val + 1U].clk_idx != 0U) {
+				clk_id_end = soc_devgroups[pm_devgrp_val + 1U].clk_idx;
+				break;
+			}
+			pm_devgrp_val = pm_devgrp_val + 1U;
+		}
+
+		/* If no valid devgrp is found,clock id is the same as last of all clock ids */
+		if (pm_devgrp_val == soc_devgroup_count) {
+			clk_id_end = soc_clock_count;
+		}
 	}
 
 	/*
@@ -608,9 +625,27 @@ int32_t clk_init(void)
 {
 	bool progress;
 	bool contents;
+	bool enabled = true;
 	int32_t ret = SUCCESS;
 	uint32_t i;
 	uint32_t clock_count = soc_clock_count;
+
+	for (i = 0U; i < soc_devgroup_count; i++) {
+		devgrp_t devgrp;
+
+		/* Translate compressed internal representation to bitfield */
+		if (i == PM_DEVGRP_DMSC) {
+			devgrp = DEVGRP_DMSC;
+		} else {
+			devgrp = (devgrp_t) BIT(i - 1U);
+		}
+
+		/* First disabled devgroup, stop at this clock index */
+		if (enabled && !pm_devgroup_is_enabled(devgrp)) {
+			clock_count = soc_devgroups[i].clk_idx;
+			enabled = false;
+		}
+	}
 
 	contents = false;
 	progress = false;
@@ -637,8 +672,11 @@ int32_t clk_init(void)
 	if (progress) {
 		for (i = 0U; i < clock_count; i++) {
 			if ((soc_clocks[i].flags & CLK_FLAG_PWR_UP_EN) != 0U) {
-				/* FIXME: Error handling */
-				clk_get(soc_clocks + i);
+				if (!clk_get(soc_clocks + i)) {
+					/* clk_get failed for one of the clocks */
+					ret = -EFAIL;
+					break;
+				}
 			}
 		}
 	} else if (contents) {

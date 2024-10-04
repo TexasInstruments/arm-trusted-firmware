@@ -125,17 +125,19 @@ bool device_clk_set_gated(struct device *dev, dev_clk_idx_t clk_idx, bool gated)
 	} else if (clkp != NULL) {
 		dev_clkp->flags &= (uint8_t) ~DEV_CLK_FLAG_DISABLE;
 		if (is_enabled) {
-			if (0U == (dev_clkp->flags & DEV_CLK_FLAG_ALLOW_SSC)) {
-				clk_ssc_block(clkp);
-			}
+			if (clk_get(clkp)) {
+				if (0U == (dev_clkp->flags & DEV_CLK_FLAG_ALLOW_SSC)) {
+					clk_ssc_block(clkp);
+				}
 
-			if (0U == (dev_clkp->flags &
-				   DEV_CLK_FLAG_ALLOW_FREQ_CHANGE)) {
-				clk_freq_change_block(clkp);
+				if (0U == (dev_clkp->flags &
+					   DEV_CLK_FLAG_ALLOW_FREQ_CHANGE)) {
+					clk_freq_change_block(clkp);
+				}
+				ret = true;
+			} else {
+				ret = false;
 			}
-
-			/* FIXME: Error handling */
-			clk_get(clkp);
 		}
 	} else {
 		/* Do Nothing */
@@ -166,7 +168,7 @@ bool device_clk_get_hw_ready(struct device *dev, dev_clk_idx_t clk_idx)
 	if (ret) {
 		switch (devgroup_ptr->dev_clk_data[data->dev_clk_idx + clk_idx].type) {
 		case DEV_CLK_TABLE_TYPE_INPUT:
-			ret = true;
+			ret = clk_get_state(clkp) == CLK_HW_STATE_ENABLED;
 			break;
 		case DEV_CLK_TABLE_TYPE_PARENT:
 			ret = clk_get_state(clkp) == CLK_HW_STATE_ENABLED;
@@ -239,7 +241,6 @@ bool device_clk_get_ssc(struct device *dev, dev_clk_idx_t clk_idx)
 bool device_clk_get_hw_ssc(struct device *dev __attribute__(
 				    (unused)), dev_clk_idx_t clk_idx __attribute__((unused)))
 {
-	/* FIXME: Implement */
 	return false;
 }
 
@@ -685,15 +686,15 @@ void device_clk_enable(struct device *dev, dev_clk_idx_t clk_idx)
 	}
 
 	if (clkp != NULL) {
-		if (0U == (dev_clkp->flags & DEV_CLK_FLAG_ALLOW_SSC)) {
-			clk_ssc_block(clkp);
-		}
+		if (clk_get(clkp)) {
+			if (0U == (dev_clkp->flags & DEV_CLK_FLAG_ALLOW_SSC)) {
+				clk_ssc_block(clkp);
+			}
 
-		if (0U == (dev_clkp->flags & DEV_CLK_FLAG_ALLOW_FREQ_CHANGE)) {
-			clk_freq_change_block(clkp);
+			if (0U == (dev_clkp->flags & DEV_CLK_FLAG_ALLOW_FREQ_CHANGE)) {
+				clk_freq_change_block(clkp);
+			}
 		}
-
-		clk_get(clkp);
 	}
 }
 
@@ -754,7 +755,6 @@ void device_clk_init(struct device *dev, dev_clk_idx_t clk_idx)
 		 * allow. Otherwise default all dev_clk's to block.
 		 */
 		if ((clock_data != NULL) && ((clock_data->flags & CLK_DATA_FLAG_ALLOW_FREQ_CHANGE) != 0UL)) {
-                        
 			dev_clkp->flags |= DEV_CLK_FLAG_ALLOW_FREQ_CHANGE;
 		}
 	}
