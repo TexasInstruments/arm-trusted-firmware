@@ -1,5 +1,5 @@
 /*
- * Data version: 240221_080721
+ * Data version: 240826_110450
  *
  * Copyright (C) 2017-2024 Texas Instruments Incorporated - http://www.ti.com/
  * ALL RIGHTS RESERVED
@@ -474,7 +474,7 @@ static const struct clk_parent clk_MAIN_DSS_DPI0_parents[2] = {
 	},
 	{
 		CLK_AM62LX_BOARD_0_VOUT0_EXTPCLKIN_OUT,
-		7,
+		1,
 	},
 };
 static const struct clk_data_mux_reg clk_data_MAIN_DSS_DPI0_out0 = {
@@ -1382,7 +1382,7 @@ static const struct clk_parent clk_WKUP_TIMERCLKn_SEL_out0_parents[8] = {
 	},
 	{
 		CLK_AM62LX_SAM62_PLL_CTRL_WRAP_WKUP_0_CHIP_DIV1_CLK_CLK,
-		4,
+		2,
 	},
 	{
 		CLK_AM62LX_GLUELOGIC_RCOSC_CLKOUT,
@@ -2550,7 +2550,7 @@ const struct clk_data soc_clock_data[178] = {
 			CLK_AM62LX_PLLFRACF2_SSMOD_16FFT_MAIN_0_FOUTPOSTDIV_CLK,
 			1,
 		},
-		.drv = &clk_drv_div_reg.drv,
+		.drv = &clk_drv_div_pll_16fft_postdiv_hsdiv.drv,
 		.flags = 0,
 		.type = CLK_TYPE_DIV,
 		.data = &clk_data_postdiv4_16ff_main_0_hsdiv5.data_div.data,
@@ -2560,7 +2560,7 @@ const struct clk_data soc_clock_data[178] = {
 			CLK_AM62LX_PLLFRACF2_SSMOD_16FFT_MAIN_0_FOUTPOSTDIV_CLK,
 			1,
 		},
-		.drv = &clk_drv_div_reg.drv,
+		.drv = &clk_drv_div_pll_16fft_postdiv_hsdiv.drv,
 		.flags = 0,
 		.type = CLK_TYPE_DIV,
 		.data = &clk_data_postdiv4_16ff_main_0_hsdiv6.data_div.data,
@@ -2570,7 +2570,7 @@ const struct clk_data soc_clock_data[178] = {
 			CLK_AM62LX_PLLFRACF2_SSMOD_16FFT_MAIN_0_FOUTPOSTDIV_CLK,
 			1,
 		},
-		.drv = &clk_drv_div_reg.drv,
+		.drv = &clk_drv_div_pll_16fft_postdiv_hsdiv.drv,
 		.flags = 0,
 		.type = CLK_TYPE_DIV,
 		.data = &clk_data_postdiv4_16ff_main_0_hsdiv7.data_div.data,
@@ -2580,7 +2580,7 @@ const struct clk_data soc_clock_data[178] = {
 			CLK_AM62LX_PLLFRACF2_SSMOD_16FFT_MAIN_0_FOUTPOSTDIV_CLK,
 			1,
 		},
-		.drv = &clk_drv_div_reg.drv,
+		.drv = &clk_drv_div_pll_16fft_postdiv_hsdiv.drv,
 		.flags = 0,
 		.type = CLK_TYPE_DIV,
 		.data = &clk_data_postdiv4_16ff_main_0_hsdiv8.data_div.data,
@@ -2590,7 +2590,7 @@ const struct clk_data soc_clock_data[178] = {
 			CLK_AM62LX_PLLFRACF2_SSMOD_16FFT_MAIN_0_FOUTPOSTDIV_CLK,
 			1,
 		},
-		.drv = &clk_drv_div_reg.drv,
+		.drv = &clk_drv_div_pll_16fft_postdiv_hsdiv.drv,
 		.flags = 0,
 		.type = CLK_TYPE_DIV,
 		.data = &clk_data_postdiv4_16ff_main_0_hsdiv9.data_div.data,
@@ -2600,7 +2600,7 @@ const struct clk_data soc_clock_data[178] = {
 			CLK_AM62LX_PLLFRACF2_SSMOD_16FFT_WKUP_0_FOUTPOSTDIV_CLK,
 			1,
 		},
-		.drv = &clk_drv_div_reg.drv,
+		.drv = &clk_drv_div_pll_16fft_postdiv_hsdiv.drv,
 		.flags = 0,
 		.type = CLK_TYPE_DIV,
 		.data = &clk_data_postdiv4_16ff_wkup_0_hsdiv6.data_div.data,
@@ -2610,7 +2610,7 @@ const struct clk_data soc_clock_data[178] = {
 			CLK_AM62LX_PLLFRACF2_SSMOD_16FFT_WKUP_0_FOUTPOSTDIV_CLK,
 			1,
 		},
-		.drv = &clk_drv_div_reg.drv,
+		.drv = &clk_drv_div_pll_16fft_postdiv_hsdiv.drv,
 		.flags = 0,
 		.type = CLK_TYPE_DIV,
 		.data = &clk_data_postdiv4_16ff_wkup_0_hsdiv7.data_div.data,
@@ -2620,7 +2620,7 @@ const struct clk_data soc_clock_data[178] = {
 			CLK_AM62LX_PLLFRACF2_SSMOD_16FFT_WKUP_0_FOUTPOSTDIV_CLK,
 			1,
 		},
-		.drv = &clk_drv_div_reg.drv,
+		.drv = &clk_drv_div_pll_16fft_postdiv_hsdiv.drv,
 		.flags = 0,
 		.type = CLK_TYPE_DIV,
 		.data = &clk_data_postdiv4_16ff_wkup_0_hsdiv8.data_div.data,
@@ -2630,7 +2630,7 @@ const struct clk_data soc_clock_data[178] = {
 			CLK_AM62LX_PLLFRACF2_SSMOD_16FFT_WKUP_0_FOUTPOSTDIV_CLK,
 			1,
 		},
-		.drv = &clk_drv_div_reg.drv,
+		.drv = &clk_drv_div_pll_16fft_postdiv_hsdiv.drv,
 		.flags = 0,
 		.type = CLK_TYPE_DIV,
 		.data = &clk_data_postdiv4_16ff_wkup_0_hsdiv9.data_div.data,

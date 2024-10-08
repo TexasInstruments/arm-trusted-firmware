@@ -1,3 +1,6 @@
+CONFIG_CLK_PLL_16FFT_FRACF_CALIBRATION := 1
+
+
 PLAT_INCLUDES		+=	\
 				-I${PLAT_PATH}/am62l/scmi			\
 				-I${PLAT_PATH}/am62l/scmi/drivers/include/			\
