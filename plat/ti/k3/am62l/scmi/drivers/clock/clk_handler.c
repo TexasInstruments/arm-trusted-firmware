@@ -189,7 +189,7 @@ int32_t get_clock_handler(uint32_t *msg_recv)
 	return ret;
 }
 
-int32_t set_clock_parent_handler(uint32_t *msg_recv)
+int32_t set_clock_parent_handler(struct tisci_msg_set_clock_parent_req *msg_recv)
 {
 	struct tisci_msg_set_clock_parent_req *req =
 		(struct tisci_msg_set_clock_parent_req *) msg_recv;
@@ -235,7 +235,7 @@ int32_t set_clock_parent_handler(uint32_t *msg_recv)
 	return ret;
 }
 
-int32_t get_clock_parent_handler(uint32_t *msg_recv)
+int32_t get_clock_parent_handler(struct tisci_msg_get_clock_parent_req *msg_recv)
 {
 	struct tisci_msg_get_clock_parent_req *req =
 		(struct tisci_msg_get_clock_parent_req *) msg_recv;
@@ -286,7 +286,7 @@ int32_t get_clock_parent_handler(uint32_t *msg_recv)
 	return ret;
 }
 
-int32_t get_num_clock_parents_handler(uint32_t *msg_recv)
+int32_t get_num_clock_parents_handler(struct tisci_msg_get_num_clock_parents_req *msg_recv)
 {
 	struct tisci_msg_get_num_clock_parents_req *req =
 		(struct tisci_msg_get_num_clock_parents_req *) msg_recv;

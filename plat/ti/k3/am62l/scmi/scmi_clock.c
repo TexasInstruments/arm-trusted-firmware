@@ -649,3 +649,58 @@ int32_t plat_scmi_clock_set_state(unsigned int agent_id,
 	return SCMI_INVALID_PARAMETERS;
 }
 
+int32_t plat_scmi_clock_get_possible_parents(unsigned int agent_id,
+				    unsigned int scmi_id,
+				    unsigned int *plat_possible_parents,
+				    size_t *nb_elts,
+				    uint32_t skip_parents)
+{
+        VERBOSE("scmi_clock_get_possible_parents agent_id = %d, scmi_id = %d\n", agent_id, scmi_id);
+        ti_scmi_clock_t *clock;
+	clock = ti_scmi_get_clock(agent_id, scmi_id);
+	if (clock == 0)
+		return 0;
+	
+        *nb_elts = (uint64_t)scmi_handler_clock_get_num_clock_parents(clock->dev_id, clock->clock_id);
+        if(plat_possible_parents) {
+                for(uint32_t i = 0; i < (uint32_t)*nb_elts ;i++) {
+                        plat_possible_parents[i] = i;
+                }
+        }
+        VERBOSE("num_parents %d\n", (uint32_t)*nb_elts); 
+        return SCMI_SUCCESS;
+}
+
+
+int32_t plat_scmi_clock_get_parent(unsigned int agent_id,
+                                   unsigned int scmi_id)
+{
+	ti_scmi_clock_t *clock;
+        uint32_t parent_id = 0;
+
+	VERBOSE("scmi_clock_get_parent agent_id = %d, scmi_id = %d\n", agent_id, scmi_id);
+	clock = ti_scmi_get_clock(agent_id, scmi_id);
+	if (clock == 0)
+		return 0;
+
+         parent_id = scmi_handler_clock_get_clock_parent(clock->dev_id, clock->clock_id);
+         parent_id = parent_id - clock->clock_id - 1;
+         VERBOSE("scmi_clock_get_parent parent_id %d\n", parent_id);
+         return parent_id;
+}
+
+int32_t plat_scmi_clock_set_parent(unsigned int agent_id,
+                                   unsigned int scmi_id,
+                                   unsigned int parent_id)
+{
+	ti_scmi_clock_t *clock;
+
+	VERBOSE("plat_scmi_clock_set_parent agent_id = %d, scmi_id = %d parent_id = %d\n", agent_id, scmi_id, parent_id);
+	clock = ti_scmi_get_clock(agent_id, scmi_id);
+	if (clock == 0)
+		return 0;
+
+        parent_id = parent_id + clock->clock_id + 1;
+        scmi_handler_clock_set_clock_parent(clock->dev_id, clock->clock_id, parent_id);
+        return SCMI_SUCCESS;
+}

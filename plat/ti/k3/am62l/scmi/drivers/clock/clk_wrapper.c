@@ -75,3 +75,40 @@ uint64_t scmi_handler_clock_get_rate(uint32_t dev_id, uint32_t clk_id)
         
 	return get_freq_handler(&req) ? 0 : resp->freq_hz;
 }
+
+int32_t scmi_handler_clock_get_num_clock_parents(uint32_t dev_id, uint32_t clk_id)
+{
+        struct tisci_msg_get_num_clock_parents_req req;
+        struct tisci_msg_get_num_clock_parents_resp *resp =
+		(struct tisci_msg_get_num_clock_parents_resp *) &req;
+
+        req.device = dev_id;        
+        req.clk = clk_id;
+        req.hdr.host = HOST_ID_TIFS;
+        
+        return get_num_clock_parents_handler(&req) ? 0 : resp-> num_parents;
+}
+
+int32_t scmi_handler_clock_set_clock_parent(uint32_t dev_id, uint32_t clk_id, uint32_t parent_id)
+{
+        struct tisci_msg_set_clock_parent_req req;
+
+        req.device = dev_id;        
+        req.clk = clk_id;
+        req.hdr.host = HOST_ID_TIFS;
+        req.parent = parent_id;
+
+        return set_clock_parent_handler(&req);        
+}
+
+int32_t scmi_handler_clock_get_clock_parent(uint32_t dev_id, uint32_t clk_id)
+{
+	struct tisci_msg_get_clock_parent_req req;
+	struct tisci_msg_get_clock_parent_resp *resp =(struct tisci_msg_get_clock_parent_resp *) &req;
+
+        req.device = dev_id;        
+        req.clk = clk_id;
+        req.hdr.host = HOST_ID_TIFS;
+
+        return get_clock_parent_handler(&req) ? 0 : resp->parent; 
+}

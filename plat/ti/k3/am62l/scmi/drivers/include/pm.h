@@ -68,8 +68,8 @@ int32_t get_clock_handler(uint32_t *msg_recv);
  *  \return ret      SUCCESS if the API executed successfully.
  *                   EFAIL   if the API failed to execute.
  */
-int32_t set_clock_parent_handler(uint32_t *msg_recv);
-
+int32_t set_clock_parent_handler(struct tisci_msg_set_clock_parent_req *msg_recv);
+  
 /**
  *  \brief  Get Clock Parent Handler PM Function.
  *
@@ -78,8 +78,8 @@ int32_t set_clock_parent_handler(uint32_t *msg_recv);
  *  \return ret      SUCCESS if the API executed successfully.
  *                   EFAIL   if the API failed to execute.
  */
-int32_t get_clock_parent_handler(uint32_t *msg_recv);
-
+int32_t get_clock_parent_handler(struct tisci_msg_get_clock_parent_req *msg_recv);
+  
 /**
  *  \brief  Get Number of Clock Parents Handler PM Function.
  *
@@ -88,7 +88,7 @@ int32_t get_clock_parent_handler(uint32_t *msg_recv);
  *  \return ret      SUCCESS if the API executed successfully.
  *                   EFAIL   if the API failed to execute.
  */
-int32_t get_num_clock_parents_handler(uint32_t *msg_recv);
+int32_t get_num_clock_parents_handler(struct tisci_msg_get_num_clock_parents_req *msg_recv);
 
 /**
  *  \brief  Set clock frequency Handler PM Function.

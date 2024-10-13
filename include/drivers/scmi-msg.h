@@ -131,6 +131,35 @@ int32_t plat_scmi_clock_rates_array(unsigned int agent_id, unsigned int scmi_id,
 int32_t plat_scmi_clock_rates_by_step(unsigned int agent_id,
 				      unsigned int scmi_id,
 				      unsigned long *min_max_step);
+/*
+ * Get clock rate in Hertz
+ * @agent_id: SCMI agent ID
+ * @scmi_id: SCMI clock ID
+ * Return clock rate or 0 if not supported
+ */
+int32_t plat_scmi_clock_get_possible_parents(unsigned int agent_id,
+					     unsigned int scmi_id,
+					     unsigned int *plat_possible_parents,
+					     size_t *nb_elts,
+					     uint32_t skip_parents);
+/*
+ * Get clock rate in Hertz
+ * @agent_id: SCMI agent ID
+ * @scmi_id: SCMI clock ID
+ * Return clock rate or 0 if not supported
+ */
+int32_t plat_scmi_clock_get_parent(unsigned int agent_id,
+                                   unsigned int scmi_id);
+/*
+ * Set clock rate in Hertz
+ * @agent_id: SCMI agent ID
+ * @scmi_id: SCMI clock ID
+ * @rate: Target clock frequency in Hertz
+ * Return a compliant SCMI error code
+ */
+int32_t plat_scmi_clock_set_parent(unsigned int agent_id,
+                                   unsigned int scmi_id,
+                                   unsigned int parent_id);
 
 /*
  * Get clock rate in Hertz
