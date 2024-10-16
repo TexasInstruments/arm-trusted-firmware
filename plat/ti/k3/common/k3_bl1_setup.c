@@ -1,0 +1,148 @@
+/*
+ * Copyright (c) 2015-2019, ARM Limited and Contributors. All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+#include <platform_def.h>
+
+#include <arch.h>
+#include <arch_helpers.h>
+#include <common/bl_common.h>
+#include <common/debug.h>
+#include <lib/mmio.h>
+#include <lib/xlat_tables/xlat_tables_v2.h>
+
+#include <k3_console.h>
+#include "k3-ddrss.h"
+#include "mailbox.h"
+
+#define ADDR_DOWN(_adr) (_adr & XLAT_ADDR_MASK(2U))
+#define SIZE_UP(_adr, _sz) (round_up((_adr + _sz), XLAT_BLOCK_SIZE(2U)) - ADDR_DOWN(_adr))
+
+#define K3_MAP_REGION_FLAT(_adr, _sz, _attr) \
+	MAP_REGION_FLAT(ADDR_DOWN(_adr), SIZE_UP(_adr, _sz), _attr)
+
+const mmap_region_t plat_k3_mmap[] = {
+	K3_MAP_REGION_FLAT(0,       0x100000000,       MT_DEVICE | MT_RW | MT_SECURE),
+	{ /* sentinel */ }
+};
+
+#define PADCONF_ADDR 0x4084000
+
+#define MAIN_PLL_MMR_BASE			(0x04060000UL)
+#define MAIN_PLL_MMR_CFG_PLL8_HSDIV_CTRL0	(0x00008080UL)
+
+meminfo_t *bl1_plat_sec_mem_layout(void)
+{
+	return NULL;
+}
+
+/*******************************************************************************
+ * Perform any BL1 specific platform actions.
+ ******************************************************************************/
+void bl1_early_platform_setup(void)
+{
+	volatile uint32_t* uart_ptr;
+
+	/* Set UART pins */
+	uart_ptr = (uint32_t*) (PADCONF_ADDR+0x1b4);
+	*uart_ptr = 0x50000;
+	uart_ptr = (uint32_t*) (PADCONF_ADDR+0x1b8);
+	*uart_ptr = 0x10000;
+
+	/* Initialize the console to provide early debug support */
+	k3_console_setup();
+
+	/* PLL8_HSDIV0 feeds A53, bump it up to 1.25GHz, VCO @2.5GHz */
+	mmio_write_32(MAIN_PLL_MMR_BASE + MAIN_PLL_MMR_CFG_PLL8_HSDIV_CTRL0, 0x8001);
+	INFO("%s done\n", __func__);
+}
+
+/******************************************************************************
+ * Perform the very early platform specific architecture setup.  This only
+ * does basic initialization. Later architectural setup (bl1_arch_setup())
+ * does not do anything platform specific.
+ *****************************************************************************/
+void bl1_plat_arch_setup(void)
+{
+    const mmap_region_t bl_regions[] = {
+		MAP_REGION_FLAT(BL1_RO_BASE,           0xB000,			          MT_CODE | MT_SECURE),
+		MAP_REGION_FLAT(BL1_RW_BASE,           0x4000,			          MT_MEMORY | MT_RW | MT_SECURE),
+		{ /* sentinel */ }
+	};
+
+	setup_page_tables(bl_regions, plat_k3_mmap);
+	enable_mmu_el3(0);
+	INFO("%s done\n", __func__);
+}
+
+struct
+{
+	uint16_t cmdid;         //!< The command ID
+	uint8_t  hostid;        //!< Identifies the queue number used for replies to a received message
+	uint8_t  seqnum;        //!< A sequence number used to detect lost messages
+	uint32_t sizeandflags;  //!< If size is present, three bytes of flags, last byte of size
+	uint32_t magicnum;              //!< Magic number to check this is indeed multistage context and should be applied
+	uint32_t rsvd;              //!< Magic number to check this is indeed multistage context and should be applied
+	union {
+		uint32_t imageoffset[4];    //!< image offset for block/image mode
+		char  filename[32];      //!< Filesystem file name for filesystem mode, max 32 chars
+	} imagelocator;
+}__packed m3r5_msg_obj;
+
+void k3_bl1_handoff(void)
+{
+	struct k3_sec_proxy_msg msg;
+
+	m3r5_msg_obj.cmdid = 0x810A;
+	m3r5_msg_obj.hostid = 0;
+	m3r5_msg_obj.seqnum = 0;
+	m3r5_msg_obj.sizeandflags = 0x0c000000;
+
+	m3r5_msg_obj.magicnum = 0x11112222;
+	m3r5_msg_obj.rsvd = 0x0;
+	m3r5_msg_obj.imagelocator.imageoffset[0] = 0x0;
+	m3r5_msg_obj.imagelocator.imageoffset[1] = 0x0;
+	m3r5_msg_obj.imagelocator.imageoffset[2] = 0x0;
+	m3r5_msg_obj.imagelocator.imageoffset[3] = 0x0;
+
+	if ((mmio_read_32(0x43010030) & 0xf8) == 0x40) {
+		memset(m3r5_msg_obj.imagelocator.filename, 0, sizeof(m3r5_msg_obj.imagelocator.filename));
+		snprintf(m3r5_msg_obj.imagelocator.filename, sizeof(m3r5_msg_obj.imagelocator.filename), "%s%s", "\\","tispl.bin");
+	} else {
+		m3r5_msg_obj.imagelocator.imageoffset[0] = 0x80000;
+	}
+
+	msg.buf = (uint8_t*) &m3r5_msg_obj;
+	msg.len = sizeof(m3r5_msg_obj);
+	k3_sec_proxy_send(0, &msg);
+	NOTICE("%s ENTERING WFI - end of PreBL %s\n", __func__, m3r5_msg_obj.imagelocator.filename);
+	asm ("wfi");
+}
+
+void bl1_platform_setup(void)
+{
+	//TODO: DDR INIT
+	k3_lpddr4_init();
+	NOTICE("%s DDR init done\n", __func__);
+	// init_mbox();
+	k3_bl1_handoff();
+}
+
+struct image_desc * bl1_plat_get_image_desc(unsigned int image_id)
+{
+    return NULL;
+}
+
+void platform_mem_init(void)
+{
+	/* Do nothing for now... */
+	// k3_lpddr4_init();
+}
+
+int plat_get_image_source(unsigned int image_id, uintptr_t *dev_handle,
+                          uintptr_t *image_spec)
+{
+    return 0;
+}

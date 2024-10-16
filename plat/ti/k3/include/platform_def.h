@@ -12,13 +12,16 @@
 
 #include <board_def.h>
 
+#define AM62_SRAM_BASE			(0x70800000)
+#define AM62_SRAM_RANGE			(0x10000)
+
 /*******************************************************************************
  * Generic platform constants
  ******************************************************************************/
 
 /* Size of cacheable stack */
 #if IMAGE_BL31
-#define PLATFORM_STACK_SIZE		0x800
+#define PLATFORM_STACK_SIZE		0x1000
 #else
 #define PLATFORM_STACK_SIZE		0x1000
 #endif
@@ -61,7 +64,7 @@
  * defined as default for our platform.
  */
 #define BL31_BASE	UL(0x00000000) /* PIE remapped on fly */
-#define BL31_SIZE	UL(0x00020000) /* 128k */
+#define BL31_SIZE	UL(0x00050000) /* 64k * 5 */
 #define BL31_LIMIT	(BL31_BASE + BL31_SIZE)
 
 /*
@@ -70,7 +73,13 @@
  * used, choose the smallest value needed to map the required virtual addresses
  * for each BL stage.
  */
-#define MAX_XLAT_TABLES		4
+#if USE_COHERENT_MEM
+#define MAX_XLAT_TABLES		10
+#elif IMAGE_BL31
+#define MAX_XLAT_TABLES		10
+#else
+#define MAX_XLAT_TABLES		2
+#endif
 
 /*
  * Defines the maximum number of regions that are allocated by the translation
@@ -197,5 +206,17 @@
 
 #define TI_SCI_HOST_ID			10
 #define TI_SCI_MAX_MESSAGE_SIZE		52
+
+#define BL1_RO_BASE	0x70800000
+#define BL1_RO_LIMIT	0x70800AFFF
+
+#define	BL1_RW_BASE	0x7080B000
+#define	BL1_RW_LIMIT	0x7080FFFF
+
+#define BL2_BASE 0x80000000
+#define BL2_LIMIT 0x100000000
+
+#define MAX_IO_HANDLES 1
+#define MAX_IO_DEVICES 1
 
 #endif /* PLATFORM_DEF_H */
