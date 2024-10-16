@@ -801,4 +801,23 @@ struct ti_sci_msg_req_enter_sleep {
 	uint32_t core_resume_hi;
 } __packed;
 
+/**
+ * \brief Request for TISCI_MSG_MIN_CONTEXT_RESTORE.
+ *
+ * \param hdr TISCI header to provide ACK/NAK flags to the host.
+ * \param ctx_lo Low 32-bits of physical pointer to address to use for context restore.
+ * \param ctx_hi High 32-bits of physical pointer to address to use for context restore.
+ *
+ * This message is sent from bootloader to TIFS to indicate that DDR is active and
+ * TIFS can restore the minimal context from the address provided in the ctx_lo and
+ * ctx_hi parameters. This response assumes DDR has been fully restored by bootloader
+ * before it is sent.
+ *
+ */
+struct tisci_msg_min_context_restore_req {
+	struct ti_sci_msg_hdr	hdr;
+	uint32_t			ctx_lo;
+	uint32_t			ctx_hi;
+} __attribute__((__packed__));
+
 #endif /* TI_SCI_PROTOCOL_H */

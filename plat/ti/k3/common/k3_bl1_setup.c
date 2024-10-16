@@ -16,6 +16,7 @@
 #include <k3_console.h>
 #include "k3-ddrss.h"
 #include "mailbox.h"
+#include "ti_sci_protocol.h"
 
 #define ADDR_DOWN(_adr) (_adr & XLAT_ADDR_MASK(2U))
 #define SIZE_UP(_adr, _sz) (round_up((_adr + _sz), XLAT_BLOCK_SIZE(2U)) - ADDR_DOWN(_adr))
@@ -32,6 +33,9 @@ const mmap_region_t plat_k3_mmap[] = {
 
 #define MAIN_PLL_MMR_BASE			(0x04060000UL)
 #define MAIN_PLL_MMR_CFG_PLL8_HSDIV_CTRL0	(0x00008080UL)
+#define CTL_MMR_BASE_CFG5 					(0x43050000U)
+#define CANUART_WAKE_OFF_MODE_STAT			(0x1318U)
+#define RTC_ONLY_PLUS_DDR_MAGIC_WORD 		(0x6D555555U)
 
 meminfo_t *bl1_plat_sec_mem_layout(void)
 {
@@ -91,34 +95,61 @@ struct
 	} imagelocator;
 }__packed m3r5_msg_obj;
 
+struct{
+	struct ti_sci_secure_msg_hdr secure_hdr;
+	struct tisci_msg_min_context_restore_req req;
+}__packed a53_tifs_msg_obj;
+
 void k3_bl1_handoff(void)
 {
-	struct k3_sec_proxy_msg msg;
+	bool is_rtc_only_ddr_exit;
+	is_rtc_only_ddr_exit = (mmio_read_32((CTL_MMR_BASE_CFG5 + CANUART_WAKE_OFF_MODE_STAT)) == RTC_ONLY_PLUS_DDR_MAGIC_WORD);
+	
+	if (is_rtc_only_ddr_exit) {
+		struct k3_sec_proxy_msg msg;
+		a53_tifs_msg_obj.secure_hdr.checksum = 0;
+		a53_tifs_msg_obj.secure_hdr.reserved = 0;		
+		a53_tifs_msg_obj.req.hdr.host = 0xA;
+		a53_tifs_msg_obj.req.hdr.seq = 0x12;
+		a53_tifs_msg_obj.req.hdr.type = 0x0308;
+		a53_tifs_msg_obj.req.ctx_lo = 0x90000000U;
+		a53_tifs_msg_obj.req.ctx_hi = 0x00000000U;
 
-	m3r5_msg_obj.cmdid = 0x810A;
-	m3r5_msg_obj.hostid = 0;
-	m3r5_msg_obj.seqnum = 0;
-	m3r5_msg_obj.sizeandflags = 0x0c000000;
+		k3_sysctrler_boot_notification_response();	
 
-	m3r5_msg_obj.magicnum = 0x11112222;
-	m3r5_msg_obj.rsvd = 0x0;
-	m3r5_msg_obj.imagelocator.imageoffset[0] = 0x0;
-	m3r5_msg_obj.imagelocator.imageoffset[1] = 0x0;
-	m3r5_msg_obj.imagelocator.imageoffset[2] = 0x0;
-	m3r5_msg_obj.imagelocator.imageoffset[3] = 0x0;
-
-	if ((mmio_read_32(0x43010030) & 0xf8) == 0x40) {
-		memset(m3r5_msg_obj.imagelocator.filename, 0, sizeof(m3r5_msg_obj.imagelocator.filename));
-		snprintf(m3r5_msg_obj.imagelocator.filename, sizeof(m3r5_msg_obj.imagelocator.filename), "%s%s", "\\","tispl.bin");
+		msg.buf = (uint8_t*) &a53_tifs_msg_obj;
+		msg.len = sizeof(a53_tifs_msg_obj);	
+		k3_sec_proxy_send(0, &msg);
+		NOTICE("%s sent message to tifs\n", __func__);
+		asm ("wfi");
 	} else {
-		m3r5_msg_obj.imagelocator.imageoffset[0] = 0x80000;
-	}
+		struct k3_sec_proxy_msg msg;
 
-	msg.buf = (uint8_t*) &m3r5_msg_obj;
-	msg.len = sizeof(m3r5_msg_obj);
-	k3_sec_proxy_send(0, &msg);
-	NOTICE("%s ENTERING WFI - end of PreBL %s\n", __func__, m3r5_msg_obj.imagelocator.filename);
-	asm ("wfi");
+		m3r5_msg_obj.cmdid = 0x810A;
+		m3r5_msg_obj.hostid = 0;
+		m3r5_msg_obj.seqnum = 0;
+		m3r5_msg_obj.sizeandflags = 0x0c000000;
+
+		m3r5_msg_obj.magicnum = 0x11112222;
+		m3r5_msg_obj.rsvd = 0x0;
+		m3r5_msg_obj.imagelocator.imageoffset[0] = 0x0;
+		m3r5_msg_obj.imagelocator.imageoffset[1] = 0x0;
+		m3r5_msg_obj.imagelocator.imageoffset[2] = 0x0;
+		m3r5_msg_obj.imagelocator.imageoffset[3] = 0x0;
+
+		if ((mmio_read_32(0x43010030) & 0xf8) == 0x40) {
+			memset(m3r5_msg_obj.imagelocator.filename, 0, sizeof(m3r5_msg_obj.imagelocator.filename));
+			snprintf(m3r5_msg_obj.imagelocator.filename, sizeof(m3r5_msg_obj.imagelocator.filename), "%s%s", "\\","tispl.bin");
+		} else {
+			m3r5_msg_obj.imagelocator.imageoffset[0] = 0x80000;
+		}
+
+		msg.buf = (uint8_t*) &m3r5_msg_obj;
+		msg.len = sizeof(m3r5_msg_obj);
+		k3_sec_proxy_send(0, &msg);
+		NOTICE("%s ENTERING WFI - end of PreBL %s\n", __func__, m3r5_msg_obj.imagelocator.filename);
+		asm ("wfi");
+	}
 }
 
 void bl1_platform_setup(void)

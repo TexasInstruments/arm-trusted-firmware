@@ -1714,7 +1714,7 @@ int ti_sci_proc_wait_boot_status_no_wait(uint8_t proc_id,
 
 uint32_t get_low_power_mode(){
 
-	return 0; // RTC only + DDR
+	return 5; // RTC only + DDR
 }
 
 /**
