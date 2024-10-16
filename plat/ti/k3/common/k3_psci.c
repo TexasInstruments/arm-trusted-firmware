@@ -17,11 +17,15 @@
 #include <k3_gicv3.h>
 #include <ti_sci.h>
 
+#include <device_wrapper.h>
+#include <devices.h>
+
 #define CORE_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL0])
 #define CLUSTER_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL1])
 #define SYSTEM_PWR_STATE(state) ((state)->pwr_domain_state[PLAT_MAX_PWR_LVL])
 
 uintptr_t k3_sec_entrypoint;
+uintptr_t k3_sec_entrypoint_glob;
 
 static void k3_cpu_standby(plat_local_state_t cpu_state)
 {
@@ -41,7 +45,7 @@ static void k3_cpu_standby(plat_local_state_t cpu_state)
 
 static int k3_pwr_domain_on(u_register_t mpidr)
 {
-	int core, proc_id, device_id, ret;
+	int core, proc_id, ret;
 
 	core = plat_core_pos_by_mpidr(mpidr);
 	if (core < 0) {
@@ -49,8 +53,9 @@ static int k3_pwr_domain_on(u_register_t mpidr)
 		return PSCI_E_INTERN_FAIL;
 	}
 
-	proc_id = PLAT_PROC_START_ID + core;
-	device_id = PLAT_PROC_DEVICE_START_ID + core;
+	proc_id = PLAT_PROC_START_ID + core;	// should be 0x21
+
+	INFO("proc_id = 0x%x\n", proc_id);
 
 	ret = ti_sci_proc_request(proc_id);
 	if (ret) {
@@ -74,18 +79,21 @@ static int k3_pwr_domain_on(u_register_t mpidr)
 		return PSCI_E_INTERN_FAIL;
 	}
 
-	ret = ti_sci_device_get(device_id);
-	if (ret) {
-		ERROR("Request to start core failed: %d\n", ret);
-		return PSCI_E_INTERN_FAIL;
-	}
+	scmi_handler_device_state_set_on(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
 
 	return PSCI_E_SUCCESS;
 }
 
-void k3_pwr_domain_off(const psci_power_state_t *target_state)
+
+static void k3_pwr_domain_off(const psci_power_state_t *target_state)
 {
-	int core, cluster, proc_id, device_id, cluster_id, ret;
+}
+
+static void __dead2 k3_pwr_domain_off_wfi(const psci_power_state_t *target_state)
+{
+	int core;
+
+	core = plat_my_core_pos();
 
 	/* At very least the local core should be powering down */
 	assert(CORE_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE);
@@ -93,106 +101,13 @@ void k3_pwr_domain_off(const psci_power_state_t *target_state)
 	/* Prevent interrupts from spuriously waking up this cpu */
 	k3_gic_cpuif_disable();
 
-	core = plat_my_core_pos();
-	cluster = MPIDR_AFFLVL1_VAL(read_mpidr_el1());
-	proc_id = PLAT_PROC_START_ID + core;
-	device_id = PLAT_PROC_DEVICE_START_ID + core;
-	cluster_id = PLAT_CLUSTER_DEVICE_START_ID + (cluster * 2);
-
-	/*
-	 * If we are the last core in the cluster then we take a reference to
-	 * the cluster device so that it does not get shutdown before we
-	 * execute the entire cluster L2 cleaning sequence below.
-	 */
-	if (CLUSTER_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE) {
-		ret = ti_sci_device_get(cluster_id);
-		if (ret) {
-			ERROR("Request to get cluster failed: %d\n", ret);
-			return;
-		}
-	}
-
-	/* Start by sending wait for WFI command */
-	ret = ti_sci_proc_wait_boot_status_no_wait(proc_id,
-			/*
-			 * Wait maximum time to give us the best chance to get
-			 * to WFI before this command timeouts
-			 */
-			UINT8_MAX, 100, UINT8_MAX, UINT8_MAX,
-			/* Wait for WFI */
-			PROC_BOOT_STATUS_FLAG_ARMV8_WFI, 0, 0, 0);
-	if (ret) {
-		ERROR("Sending wait for WFI failed (%d)\n", ret);
-		return;
-	}
-
-	/* Now queue up the core shutdown request */
-	ret = ti_sci_device_put_no_wait(device_id);
-	if (ret) {
-		ERROR("Sending core shutdown message failed (%d)\n", ret);
-		return;
-	}
-
 	/* If our cluster is not going down we stop here */
-	if (CLUSTER_PWR_STATE(target_state) != PLAT_MAX_OFF_STATE)
-		return;
-
-	/* set AINACTS */
-	ret = ti_sci_proc_set_boot_ctrl_no_wait(proc_id,
-			PROC_BOOT_CTRL_FLAG_ARMV8_AINACTS, 0);
-	if (ret) {
-		ERROR("Sending set control message failed (%d)\n", ret);
-		return;
+	if (CLUSTER_PWR_STATE(target_state) != PLAT_MAX_OFF_STATE) {
+		scmi_handler_device_state_set_off(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
 	}
 
-	/* set L2FLUSHREQ */
-	ret = ti_sci_proc_set_boot_ctrl_no_wait(proc_id,
-			PROC_BOOT_CTRL_FLAG_ARMV8_L2FLUSHREQ, 0);
-	if (ret) {
-		ERROR("Sending set control message failed (%d)\n", ret);
-		return;
-	}
-
-	/* wait for L2FLUSHDONE*/
-	ret = ti_sci_proc_wait_boot_status_no_wait(proc_id,
-			UINT8_MAX, 2, UINT8_MAX, UINT8_MAX,
-			PROC_BOOT_STATUS_FLAG_ARMV8_L2F_DONE, 0, 0, 0);
-	if (ret) {
-		ERROR("Sending wait message failed (%d)\n", ret);
-		return;
-	}
-
-	/* clear L2FLUSHREQ */
-	ret = ti_sci_proc_set_boot_ctrl_no_wait(proc_id,
-			0, PROC_BOOT_CTRL_FLAG_ARMV8_L2FLUSHREQ);
-	if (ret) {
-		ERROR("Sending set control message failed (%d)\n", ret);
-		return;
-	}
-
-	/* set ACINACTM */
-	ret = ti_sci_proc_set_boot_ctrl_no_wait(proc_id,
-			PROC_BOOT_CTRL_FLAG_ARMV8_ACINACTM, 0);
-	if (ret) {
-		ERROR("Sending set control message failed (%d)\n", ret);
-		return;
-	}
-
-	/* wait for STANDBYWFIL2 */
-	ret = ti_sci_proc_wait_boot_status_no_wait(proc_id,
-			UINT8_MAX, 2, UINT8_MAX, UINT8_MAX,
-			PROC_BOOT_STATUS_FLAG_ARMV8_STANDBYWFIL2, 0, 0, 0);
-	if (ret) {
-		ERROR("Sending wait message failed (%d)\n", ret);
-		return;
-	}
-
-	/* Now queue up the cluster shutdown request */
-	ret = ti_sci_device_put_no_wait(cluster_id);
-	if (ret) {
-		ERROR("Sending cluster shutdown message failed (%d)\n", ret);
-		return;
-	}
+	while(1)
+		wfi();
 }
 
 void k3_pwr_domain_on_finish(const psci_power_state_t *target_state)
@@ -270,6 +185,7 @@ static plat_psci_ops_t k3_plat_psci_ops = {
 	.cpu_standby = k3_cpu_standby,
 	.pwr_domain_on = k3_pwr_domain_on,
 	.pwr_domain_off = k3_pwr_domain_off,
+	.pwr_domain_pwr_down_wfi = k3_pwr_domain_off_wfi,
 	.pwr_domain_on_finish = k3_pwr_domain_on_finish,
 	.pwr_domain_suspend = k3_pwr_domain_suspend,
 	.pwr_domain_suspend_finish = k3_pwr_domain_suspend_finish,
@@ -279,13 +195,20 @@ static plat_psci_ops_t k3_plat_psci_ops = {
 	.validate_power_state = k3_validate_power_state,
 };
 
+
+void  __attribute__((aligned(16))) jump_to_atf_func() {
+	void (*bl31_loc_warm_entry)(void) = (void*)k3_sec_entrypoint_glob; // bl31_warm_entrypoint
+	bl31_loc_warm_entry();
+}
+
 int plat_setup_psci_ops(uintptr_t sec_entrypoint,
 			const plat_psci_ops_t **psci_ops)
 {
 	uint64_t fw_caps = 0;
 	int ret;
 
-	k3_sec_entrypoint = sec_entrypoint;
+	k3_sec_entrypoint_glob = sec_entrypoint;
+	k3_sec_entrypoint = (long unsigned int)(void*)&jump_to_atf_func;
 
 	ret = ti_sci_query_fw_caps(&fw_caps);
 	if (ret) {
@@ -302,6 +225,7 @@ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
 		k3_plat_psci_ops.pwr_domain_suspend_finish = NULL;
 		k3_plat_psci_ops.get_sys_suspend_power_state = NULL;
 	}
+	ERROR("k3_sec_entrypoint = 0x%lx\n", k3_sec_entrypoint);
 
 	*psci_ops = &k3_plat_psci_ops;
 
