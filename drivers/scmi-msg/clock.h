@@ -36,7 +36,7 @@ struct scmi_clock_attributes_a2p {
 	uint32_t clock_id;
 };
 
-#define SCMI_CLOCK_NAME_LENGTH_MAX	16U
+#define SCMI_CLOCK_NAME_LENGTH_MAX	64U
 
 struct scmi_clock_attributes_p2a {
 	int32_t status;
