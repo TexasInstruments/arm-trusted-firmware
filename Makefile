@@ -202,7 +202,7 @@ else
 endif #(AARCH32_INSTRUCTION_SET)
 
 TF_CFLAGS_aarch32	+=	-mno-unaligned-access
-TF_CFLAGS_aarch64	+=	-mgeneral-regs-only -mstrict-align
+TF_CFLAGS_aarch64	+=	-mgeneral-regs-only -mstrict-align -Wno-address-of-packed-member
 
 ##############################################################################
 # WARNINGS Configuration
