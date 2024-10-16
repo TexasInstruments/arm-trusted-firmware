@@ -15,10 +15,20 @@
 #include <common/debug.h>
 #include <lib/mmio.h>
 #include <lib/xlat_tables/xlat_tables_v2.h>
+#include <drivers/generic_delay_timer.h>
 
 #include <k3_console.h>
 #include <k3_gicv3.h>
 #include <ti_sci.h>
+#include <plat_scmi_def.h>
+#include <mailbox.h>
+#include <clk.h>
+#include <clk_wrapper.h>
+#include <device.h>
+#include <devices.h>
+#include <clocks.h>
+#include <device_clk.h>
+#include <device_pm.h>
 
 #define ADDR_DOWN(_adr) (_adr & XLAT_ADDR_MASK(2U))
 #define SIZE_UP(_adr, _sz) (round_up((_adr + _sz), XLAT_BLOCK_SIZE(2U)) - ADDR_DOWN(_adr))
@@ -26,14 +36,10 @@
 #define K3_MAP_REGION_FLAT(_adr, _sz, _attr) \
 	MAP_REGION_FLAT(ADDR_DOWN(_adr), SIZE_UP(_adr, _sz), _attr)
 
+#include <device_wrapper.h>
 /* Table of regions to map using the MMU */
 const mmap_region_t plat_k3_mmap[] = {
-	K3_MAP_REGION_FLAT(K3_USART_BASE,       K3_USART_SIZE,       MT_DEVICE | MT_RW | MT_SECURE),
-	K3_MAP_REGION_FLAT(K3_GIC_BASE,         K3_GIC_SIZE,         MT_DEVICE | MT_RW | MT_SECURE),
-	K3_MAP_REGION_FLAT(K3_GTC_BASE,         K3_GTC_SIZE,         MT_DEVICE | MT_RW | MT_SECURE),
-	K3_MAP_REGION_FLAT(SEC_PROXY_RT_BASE,   SEC_PROXY_RT_SIZE,   MT_DEVICE | MT_RW | MT_SECURE),
-	K3_MAP_REGION_FLAT(SEC_PROXY_SCFG_BASE, SEC_PROXY_SCFG_SIZE, MT_DEVICE | MT_RW | MT_SECURE),
-	K3_MAP_REGION_FLAT(SEC_PROXY_DATA_BASE, SEC_PROXY_DATA_SIZE, MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(0x000000,0x80000000, MT_DEVICE | MT_RW | MT_SECURE),
 	{ /* sentinel */ }
 };
 
@@ -110,6 +116,7 @@ void bl31_plat_arch_setup(void)
 #if USE_COHERENT_MEM
 		MAP_REGION_FLAT(BL_COHERENT_RAM_BASE, BL_COHERENT_RAM_END - BL_COHERENT_RAM_BASE, MT_DEVICE  | MT_RW | MT_SECURE),
 #endif
+		/* MAP_REGION_FLAT(AM62_SRAM_BASE,  AM62_SRAM_RANGE,				  MT_DEVICE | MT_RW | MT_NS), */
 		{ /* sentinel */ }
 	};
 
@@ -124,6 +131,21 @@ void bl31_platform_setup(void)
 
 	k3_gic_driver_init(K3_GIC_BASE);
 	k3_gic_init();
+        generic_delay_timer_init();
+
+#ifdef K3_TI_SCI_MAILBOX
+	INFO("AM62L: bl31 setup\n");
+	init_mbox();
+	ti_init_scmi_server();
+
+	clk_init();
+        if(devices_init()){
+	  WARN("Devices init failed!\n");
+	}
+	else {
+	  INFO("devices init passed\n");
+	}
+#endif
 
 	ret = ti_sci_get_revision(&version);
 	if (ret) {
