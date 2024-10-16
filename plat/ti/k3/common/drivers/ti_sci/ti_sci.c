@@ -1712,6 +1712,11 @@ int ti_sci_proc_wait_boot_status_no_wait(uint8_t proc_id,
 	return 0;
 }
 
+uint32_t get_low_power_mode(){
+
+	return 0; // RTC only + DDR
+}
+
 /**
  * ti_sci_enter_sleep - Command to initiate system transition into suspend.
  *

@@ -22,6 +22,9 @@
 #include <ti_sci.h>
 #include <plat_scmi_def.h>
 #include <mailbox.h>
+#ifdef TI_AM62L_LPM
+#include <lpm_stub.h>
+#endif
 
 #define ADDR_DOWN(_adr) (_adr & XLAT_ADDR_MASK(2U))
 #define SIZE_UP(_adr, _sz) (round_up((_adr + _sz), XLAT_BLOCK_SIZE(2U)) - ADDR_DOWN(_adr))
@@ -104,6 +107,9 @@ void bl31_plat_arch_setup(void)
 {
 	const mmap_region_t bl_regions[] = {
 		MAP_REGION_FLAT(BL31_START,           BL31_SIZE,			          MT_MEMORY  | MT_RW | MT_SECURE),
+#ifdef TI_AM62L_LPM
+		MAP_REGION_FLAT(DEVICE_WKUP_SRAM_BASE,DEVICE_WKUP_SRAM_SIZE,			          MT_MEMORY  | MT_RW | MT_SECURE),
+#endif
 		MAP_REGION_FLAT(BL_CODE_BASE,         BL_CODE_END         - BL_CODE_BASE,         MT_CODE    | MT_RO | MT_SECURE),
 		MAP_REGION_FLAT(BL_RO_DATA_BASE,      BL_RO_DATA_END      - BL_RO_DATA_BASE,      MT_RO_DATA | MT_RO | MT_SECURE),
 #if USE_COHERENT_MEM
@@ -167,6 +173,14 @@ void bl31_platform_setup(void)
 	} else {
 		NOTICE("Upgrade Firmwares for Power off functionality\n");
 	}
+#ifdef TI_AM62L_LPM
+	if(k3_lpm_stub_copy_to_sram()){
+	  	WARN("A53 stub copy failed!\n");
+	}
+	else {
+	  	INFO("A53 stub copy passed\n");
+	}
+#endif
 }
 
 void platform_mem_init(void)

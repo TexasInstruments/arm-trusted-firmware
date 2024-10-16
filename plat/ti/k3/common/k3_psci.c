@@ -17,6 +17,8 @@
 #include <ti_sci_protocol.h>
 #include <k3_gicv3.h>
 #include <ti_sci.h>
+#include <lpm_stub.h>
+#include <gtc.h>
 
 #include <device_wrapper.h>
 #include <devices.h>
@@ -109,6 +111,8 @@ static void __dead2 k3_pwr_domain_off_wfi(const psci_power_state_t *target_state
 	if (CLUSTER_PWR_STATE(target_state) != PLAT_MAX_OFF_STATE) {
 		scmi_handler_device_state_set_off(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
 	}
+	
+	k3_suspend_to_ram();
 
 	while(1)
 		wfi();
@@ -161,21 +165,43 @@ static int k3_validate_power_state(unsigned int power_state,
 static void k3_pwr_domain_suspend(const psci_power_state_t *target_state)
 {
 	unsigned int core, proc_id;
-
+	/* TODO: create a static carvout for TIFS context save and restore */
+	uint64_t  context_save_addr = 0x90000000;
+	uint32_t mode = 0;
+	mode = get_low_power_mode();
 	core = plat_my_core_pos();
+	INFO("k3_pwr_domain_suspend %d\n",mode);
+
 	proc_id = PLAT_PROC_START_ID + core;
 
 	/* Prevent interrupts from spuriously waking up this cpu */
 	k3_gic_cpuif_disable();
 	k3_gic_save_context();
 
-	k3_pwr_domain_off(target_state);
+	if(mode == 5){
 
-	ti_sci_enter_sleep(proc_id, 0, k3_sec_entrypoint);
+		k3_lpm_config_magic_words(mode);
+		ti_sci_prepare_sleep(mode, context_save_addr, 0);
+		INFO("sent prepare message\n");
+		k3_config_wake_sources(true);
+		ti_sci_enter_sleep(proc_id, mode, k3_sec_entrypoint);
+		INFO("sent enter sleep message\n");
+
+	} else if ( mode == 0){
+		
+		k3_lpm_config_magic_words(mode);
+		ti_sci_prepare_sleep(mode, context_save_addr, 0);
+		INFO("sent prepare message\n");
+		k3_config_wake_sources(true);
+		ti_sci_enter_sleep(proc_id, mode, k3_sec_entrypoint);
+		INFO("sent enter sleep message\n");
+	}
+
 }
 
 static void k3_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
 {
+	k3_config_wake_sources(false);
 	k3_gic_restore_context();
 	k3_gic_cpuif_enable();
 }
@@ -213,6 +239,17 @@ void  __attribute__((aligned(16))) jump_to_atf_func() {
 int plat_setup_psci_ops(uintptr_t sec_entrypoint,
 			const plat_psci_ops_t **psci_ops)
 {
+#ifdef TI_AM62L_LPM
+
+	k3_sec_entrypoint_glob = sec_entrypoint;
+	k3_sec_entrypoint = (long unsigned int)(void*)&jump_to_atf_func;
+	ERROR("k3_sec_entrypoint = 0x%lx\n", k3_sec_entrypoint);
+
+	*psci_ops = &k3_plat_psci_ops;
+
+	return 0;
+#else
+
 	uint64_t fw_caps = 0;
 	int ret;
 
@@ -239,4 +276,5 @@ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
 	*psci_ops = &k3_plat_psci_ops;
 
 	return 0;
+#endif /* TI_AM62L_LPM */
 }

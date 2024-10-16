@@ -9,11 +9,19 @@ include ${PLAT_PATH}/am62l/scmi/drivers/clock/clock.mk
 include ${PLAT_PATH}/am62l/scmi/drivers/device/device.mk
 include ${PLAT_PATH}/am62l/scmi/drivers/psc/psc.mk
 include ${PLAT_PATH}/am62l/scmi/drivers/soc/am62lx/soc.mk
+include ${PLAT_PATH}/am62l/lpm/lpm.mk
 
 # We dont have system level coherency capability
 USE_COHERENT_MEM	:=	0
 K3_TI_SCI_MAILBOX	:=	1
 $(eval $(call add_define,K3_TI_SCI_MAILBOX))
+TI_AM62L_LPM	:=	1
+$(eval $(call add_define,TI_AM62L_LPM))
+TI_AM62L_LPM_TRACE	:=	1
+$(eval $(call add_define,TI_AM62L_LPM_TRACE))
+
+# Add support for platform supplied linker script for BL31 build
+$(eval $(call add_define,PLAT_EXTRA_LD_SCRIPT))
 
 TI_USE_SCMI	:=	1
 $(eval $(call add_define,TI_USE_SCMI))

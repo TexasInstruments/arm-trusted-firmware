@@ -245,6 +245,11 @@ int ti_sci_proc_wait_boot_status_no_wait(uint8_t proc_id,
 					 uint32_t status_flags_1_clr_any_wait);
 
 /**
+ * Returns the low power mode that needs to be entered
+ */
+uint32_t get_low_power_mode();
+
+/**
  * System Low Power Operations
  *
  * - ti_sci_enter_sleep - Command to initiate system transition into suspend.
@@ -271,5 +276,12 @@ int ti_sci_enter_sleep(uint8_t proc_id,
  */
 int ti_sci_prepare_sleep(uint8_t mode, uint64_t context_save_addr,
 						 uint32_t debug_flags);
+
+/**
+ * ti_sci_init() - Basic initialization
+ *
+ * Return: 0 if all goes good, else appropriate error message.
+ */
+int ti_sci_init(void);
 
 #endif /* TI_SCI_H */

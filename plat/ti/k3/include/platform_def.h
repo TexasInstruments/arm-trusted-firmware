@@ -64,38 +64,29 @@
  * defined as default for our platform.
  */
 #define BL31_BASE	UL(0x00000000) /* PIE remapped on fly */
-#define BL31_SIZE	UL(0x00050000) /* 64k * 5 */
+#define BL31_SIZE	UL(0x00060000) /* 64k * 6 */
 #define BL31_LIMIT	(BL31_BASE + BL31_SIZE)
+#define DEVICE_WKUP_SRAM_BASE					UL(0x707f0000)
+#define DEVICE_WKUP_SRAM_STACK_SIZE  			UL(0x1000)
+#define DEVICE_WKUP_SRAM_SIZE					UL(0x00010000)
+#define DEVICE_WKUP_SRAM_CODE_SIZE				(DEVICE_WKUP_SRAM_SIZE - DEVICE_WKUP_SRAM_STACK_SIZE)
+#define DEVICE_WKUP_SRAM_STACK_BASE  			(DEVICE_WKUP_SRAM_BASE + DEVICE_WKUP_SRAM_CODE_SIZE)
+#define DEVICE_WKUP_SRAM_STACK_BASE_L 			(DEVICE_WKUP_SRAM_STACK_BASE & 0xFFFFU)
+#define DEVICE_WKUP_SRAM_STACK_BASE_H 			(DEVICE_WKUP_SRAM_STACK_BASE >> 16)
+#define __wkupsramfunc							__attribute__((section(".wkupsram.text")))
+#define __wkupsramdata 							__attribute__((section(".wkupsram.data")))
+#define __wkupsramresumeentry 					__attribute__((section(".wkupsram.resume_entry")))
+#define __wkupsramsuspendentry 					__attribute__((section(".wkupsram.suspend_entry")))
 
-/*
- * Defines the maximum number of translation tables that are allocated by the
- * translation table library code. To minimize the amount of runtime memory
- * used, choose the smallest value needed to map the required virtual addresses
- * for each BL stage.
- */
-#if USE_COHERENT_MEM
-#define MAX_XLAT_TABLES		10
-#elif IMAGE_BL31
-#define MAX_XLAT_TABLES		10
-#else
-#define MAX_XLAT_TABLES		2
-#endif
-
-/*
- * Defines the maximum number of regions that are allocated by the translation
- * table library code. A region consists of physical base address, virtual base
- * address, size and attributes (Device/Memory, RO/RW, Secure/Non-Secure), as
- * defined in the `mmap_region_t` structure. The platform defines the regions
- * that should be mapped. Then, the translation table library will create the
- * corresponding tables and descriptors at runtime. To minimize the amount of
- * runtime memory used, choose the smallest value needed to register the
- * required regions for each BL stage.
- */
-#if USE_COHERENT_MEM
-#define MAX_MMAP_REGIONS	11
-#else
-#define MAX_MMAP_REGIONS	10
-#endif
+#define GTC_CFG0_BASE                         	(0xa80000UL)
+#define GTC_CFG1_BASE          					(0xA90000UL)
+#define RTC_BASE                               	(0x2b1f0000UL)
+#define WKUP_CTRL_MMR_SEC_2_BASE          		(0x43020000UL)
+#define WKUP_CTRL_MMR_SEC_4_BASE          		(0x43040000UL)
+#define WKUP_CTRL_MMR_SEC_5_BASE          		(0x43050000UL)
+#define WKUP_CTRL_MMR_SEC_7_BASE          		(0x43070000UL)
+#define MAIN_PLL_MMR_BASE						(0x04060000UL)
+#define DDRSS0_CTRL_BASE           				(0xF308000UL)
 
 /*
  * Defines the total size of the address space in bytes. For example, for a 32
