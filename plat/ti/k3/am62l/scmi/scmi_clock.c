@@ -625,7 +625,12 @@ int32_t plat_scmi_clock_get_state(unsigned int agent_id,
 	if (!clock)
 		return SCMI_NOT_SUPPORTED;
 
-	return SCMI_SUCCESS;
+	/* This function is broken, send a fix upstream, create a return value
+	 * for status and put the state in a seperate variable pointer */
+
+	/* Also, PM framework can return unreq and auto state, linux expect req and auto state,
+	 *   for auto and req state, return value is always enabled */
+        return !!scmi_handler_clock_get_state(clock->dev_id, clock->clock_id);                 
 }
 
 int32_t plat_scmi_clock_set_state(unsigned int agent_id,

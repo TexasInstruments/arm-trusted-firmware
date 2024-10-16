@@ -66,13 +66,13 @@ int32_t plat_scmi_clock_set_parent(unsigned int agent_id,
                                    unsigned int scmi_id,
                                    unsigned int parent_id)
 {
-	return 0U;
+	return SCMI_NOT_SUPPORTED;
 }
 
 int32_t plat_scmi_clock_get_parent(unsigned int agent_id,
                                    unsigned int scmi_id)
 {
-	return 0U;
+	return SCMI_NOT_SUPPORTED;
 }
 
 unsigned long plat_scmi_clock_get_rate(unsigned int agent_id __unused,
@@ -299,6 +299,11 @@ static void scmi_clock_parent_get(struct scmi_msg *msg)
 
 	parent_id = plat_scmi_clock_get_parent(msg->agent_id, clock_id);
 
+	if(!parent_id)
+                return_values.status = SCMI_NOT_FOUND;
+        else if(parent_id < 0) 
+                return_values.status = SCMI_NOT_SUPPORTED;
+        
 	return_values.parent_id = (uint32_t)parent_id;
 
 	scmi_write_response(msg, &return_values, sizeof(return_values));
@@ -409,6 +414,32 @@ static void scmi_clock_config_set(struct scmi_msg *msg)
 	status = plat_scmi_clock_set_state(msg->agent_id, clock_id, enable);
 
 	scmi_status_response(msg, status);
+}
+
+static void scmi_clock_config_get(struct scmi_msg *msg)
+{
+	const struct scmi_clock_config_get_a2p *in_args = (void *)msg->in;
+        struct scmi_clock_config_get_p2a p2a = {
+		.status = SCMI_SUCCESS,
+	};
+        
+	unsigned int clock_id = 0U;
+
+	if (msg->in_size != sizeof(*in_args)) {
+		scmi_status_response(msg, SCMI_PROTOCOL_ERROR);
+		return;
+	}
+
+	clock_id = SPECULATION_SAFE_VALUE(in_args->clock_id);
+
+	if (clock_id >= plat_scmi_clock_count(msg->agent_id)) {
+		scmi_status_response(msg, SCMI_INVALID_PARAMETERS);
+		return;
+	}
+
+	p2a.config = plat_scmi_clock_get_state(msg->agent_id, clock_id);
+
+        scmi_write_response(msg, &p2a, sizeof(p2a));
 }
 
 #define RATES_ARRAY_SIZE_MAX	(SCMI_PLAYLOAD_MAX - \
@@ -525,6 +556,7 @@ static const scmi_msg_handler_t scmi_clock_handler_table[] = {
 	[SCMI_CLOCK_RATE_SET] = scmi_clock_rate_set,
 	[SCMI_CLOCK_RATE_GET] = scmi_clock_rate_get,
 	[SCMI_CLOCK_CONFIG_SET] = scmi_clock_config_set,
+        [SCMI_CLOCK_CONFIG_GET] = scmi_clock_config_get,
 	[SCMI_CLOCK_POSSIBLE_PARENTS_GET] = scmi_clock_possible_parents_get,
 	[SCMI_CLOCK_PARENT_SET] = scmi_clock_parent_set,
 	[SCMI_CLOCK_PARENT_GET] = scmi_clock_parent_get,

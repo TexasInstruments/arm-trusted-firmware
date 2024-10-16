@@ -22,6 +22,7 @@ enum scmi_clock_command_id {
 	SCMI_CLOCK_RATE_SET = 0x005,
 	SCMI_CLOCK_RATE_GET = 0x006,
 	SCMI_CLOCK_CONFIG_SET = 0x007,
+	SCMI_CLOCK_CONFIG_GET = 0x00B,
 	SCMI_CLOCK_POSSIBLE_PARENTS_GET = 0xC,
 	SCMI_CLOCK_PARENT_SET = 0xD,
 	SCMI_CLOCK_PARENT_GET = 0xE,
@@ -110,6 +111,25 @@ struct scmi_clock_config_set_p2a {
 	int32_t status;
 };
 
+/*
+ * Clock Config Get
+ */
+
+#define SCMI_CLOCK_CONFIG_GET_ENABLE_POS	0
+
+#define SCMI_CLOCK_CONFIG_GET_ENABLE_MASK \
+	BIT(SCMI_CLOCK_CONFIG_GET_ENABLE_POS)
+
+struct scmi_clock_config_get_a2p {
+	uint32_t clock_id;
+	uint32_t flags;
+};
+
+struct scmi_clock_config_get_p2a {
+	int32_t status;
+        uint32_t attributes;
+        uint32_t config;
+};
 
 /* 
  * Clock Possible Parents

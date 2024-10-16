@@ -58,7 +58,7 @@ int32_t set_clock_handler(struct tisci_msg_set_clock_req *msg_recv);
  *  \return ret      SUCCESS if the API executed successfully.
  *                   EFAIL   if the API failed to execute.
  */
-int32_t get_clock_handler(uint32_t *msg_recv);
+int32_t get_clock_handler(struct tisci_msg_get_clock_req *msg_recv);
 
 /**
  *  \brief  Set Clock Parent Handler PM Function.

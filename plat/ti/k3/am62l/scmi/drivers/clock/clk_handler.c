@@ -125,7 +125,7 @@ int32_t set_clock_handler(struct tisci_msg_set_clock_req *msg_recv)
 	return ret;
 }
 
-int32_t get_clock_handler(uint32_t *msg_recv)
+int32_t get_clock_handler(struct tisci_msg_get_clock_req *msg_recv)
 {
 	struct tisci_msg_get_clock_req *req =
 		(struct tisci_msg_get_clock_req *) msg_recv;

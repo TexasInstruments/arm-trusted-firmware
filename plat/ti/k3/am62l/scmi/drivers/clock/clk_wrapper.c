@@ -51,6 +51,19 @@ int32_t scmi_handler_clock_unprepare(uint32_t dev_id, uint32_t clk_id)
 	return set_clock_handler(&req);
 }
 
+int32_t scmi_handler_clock_get_state(uint32_t dev_id, uint32_t clk_id)
+{
+        struct tisci_msg_get_clock_req req;
+        struct tisci_msg_get_clock_resp *resp =
+		(struct tisci_msg_get_clock_resp *)&req;
+
+        req.device = dev_id;
+        req.clk = clk_id;
+        req.hdr.host = HOST_ID_TIFS;
+
+	return get_clock_handler(&req)? 0: resp->programmed_state;
+}
+
 int32_t scmi_handler_clock_set_rate(uint32_t dev_id, uint32_t clk_id, uint64_t target_freq)
 {
         struct tisci_msg_set_freq_req req;
