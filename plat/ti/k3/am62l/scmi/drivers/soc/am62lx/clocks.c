@@ -1703,7 +1703,7 @@ static const struct clk_data_div_reg clk_data_hsdiv4_16fft_wkup_0_hsdiv1 = {
 static const struct clk_data_div_reg clk_data_hsdiv4_16fft_wkup_0_hsdiv2 = {
 	.data_div = {
 		.n = 128,
-		.default_div = 50,
+		.default_div = 25,
 	},
 	.reg = 0x04040000UL + (0x1000UL * 0UL) + 0x80UL + (0x4UL * 2UL),
 	.bit = 0,
