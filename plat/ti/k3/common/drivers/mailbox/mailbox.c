@@ -38,7 +38,7 @@ void init_mbox(void) {
 
 	/* consume boot notification, but do nothing about it for now */
 	rcv_addr = mmio_read_32(TIFS_MAILBOX_BASE1 + TIFS_MAILBOX_MSG);
-	INFO("%s: boot notification recevied from TIFS: 0x%lx\n",__func__, rcv_addr);
+	NOTICE("%s: boot notification recevied from TIFS: 0x%lx\n",__func__, rcv_addr);
 }
 
 int k3_sec_proxy_clear_rx_thread(enum k3_sec_proxy_chan_id id)

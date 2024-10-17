@@ -153,7 +153,7 @@ void bl31_platform_setup(void)
 		return;
 	}
 
-	INFO("SYSFW ABI: %d.%d (firmware rev 0x%04x '%s')\n",
+	NOTICE("SYSFW ABI: %d.%d (firmware rev 0x%04x '%s')\n",
 	     version.abi_major, version.abi_minor,
 	     version.firmware_revision,
 	     version.firmware_description);
