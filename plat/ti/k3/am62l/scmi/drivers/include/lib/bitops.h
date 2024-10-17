@@ -80,18 +80,6 @@ static inline uint32_t set_field(uint32_t tgt, uint32_t end, uint32_t start, uin
 static inline uint32_t get_mask(uint32_t end, uint32_t start);
 
 /**
- * fls - find last (most-significant) bit set
- * @x: the word to search
- *
- * This is defined the same way as ffs.
- * Note fls(0) = 0, fls(1) = 1, fls(0x80000000) = 32.
- */
-static inline int fls(uint32_t x)
-{
-    return x ? sizeof(x) * 8 - __builtin_clz(x) : 0;
-}
-
-/**
  * \brief Generate a mask for the give bit field [end:start]
  *
  * All the bits between the two specified bit indices including

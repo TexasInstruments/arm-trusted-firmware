@@ -13,6 +13,7 @@ BL31_SOURCES		+=	\
 				${PLAT_PATH}/am62l/scmi/drivers/clock/pll.c    \
 				${PLAT_PATH}/am62l/scmi/drivers/clock/osal_wrapper.c    \
 				${PLAT_PATH}/am62l/scmi/drivers/clock/clk_wrapper.c    \
+				${PLAT_PATH}/am62l/scmi/drivers/clock/ilog.c    \
 				${PLAT_PATH}/am62l/scmi/drivers/clock/div64.c    \
 				${PLAT_PATH}/am62l/scmi/drivers/clock/notifier.c    \
 				drivers/delay_timer/delay_timer.c	\

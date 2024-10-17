@@ -36,7 +36,7 @@
 
 #include <clk_mux.h>
 #include <lib/container_of.h>
-#include <log2.h>
+#include <ilog.h>
 #include <lib/io.h>
 #include <lib/trace.h>
 
@@ -59,7 +59,8 @@ static uint32_t clk_mux_get_parent_value(struct clk *clkp)
 	} else {
 		v = readl(reg->reg);
 		v >>= reg->bit;
-		v &= (uint32_t) ((1U << ilog2(mux->n - 1U)) - 1U);
+                INFO("%d\n",reg->bit);
+		v &= (uint32_t) ((1U << ilog32(mux->n - 1U)) - 1U);
 	}
 
 	return v;
@@ -100,7 +101,7 @@ static bool clk_mux_set_parent(struct clk *clkp, uint8_t new_parent)
 		 */
 	} else {
 		v = readl(reg->reg);
-		v &= ~(((1U << ilog2(mux->n - 1U)) - 1U) << reg->bit);
+		v &= ~(((1U << ilog32(mux->n - 1U)) - 1U) << reg->bit);
 		v |= (uint32_t) (new_parent << reg->bit);
 		ti_clk_writel(v, reg->reg);
 		pm_trace(TRACE_PM_ACTION_CLOCK_SET_PARENT,
