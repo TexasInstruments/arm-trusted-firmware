@@ -465,7 +465,7 @@ uint32_t clk_div_reg_get_div(struct clk *clkp)
 			n -= 1U;
 		}
 		v = readl(data_reg->reg) >> data_reg->bit;
-                INFO("v = %x\n", v);
+
 		v &= (uint32_t) ((1U << ilog32(n)) - 1U);
 		if (0U == data_reg->start_at_1) {
 			v += 1U;

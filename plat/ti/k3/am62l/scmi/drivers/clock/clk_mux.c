@@ -59,7 +59,7 @@ static uint32_t clk_mux_get_parent_value(struct clk *clkp)
 	} else {
 		v = readl(reg->reg);
 		v >>= reg->bit;
-                INFO("%d\n",reg->bit);
+
 		v &= (uint32_t) ((1U << ilog32(mux->n - 1U)) - 1U);
 	}
 
