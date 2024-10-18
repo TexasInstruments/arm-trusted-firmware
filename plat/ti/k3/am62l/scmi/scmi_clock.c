@@ -19,20 +19,20 @@
 #include <device_clk.h>
 
 
-#define AM62L_SCMI_CLOCK(_dev_id, _clock_id, _name)                    \
-        {                                                               \
-	.dev_id	= _dev_id,                                              \
-	.name = appen(xstr(_clock_id), "_", _name ),                    \
-        .clock_id = _clock_id,                                          \
-        .rates = am62l_rates,				\
-        }
+#define AM62L_SCMI_CLOCK(_dev_id, _clock_id, _name)		\
+	{							\
+		.dev_id	= _dev_id,				\
+		.name = appen(xstr(_clock_id), "_", _name ),	\
+		.clock_id = _clock_id,				\
+		.rates = am62l_rates,				\
+	}
 
 #define xstr(s) str(s)
 #define str(s) #s
 
 #define appen(a,b,c) a b c
 
-#define AM62L_SCMI_CLOCK_MUX AM62L_SCMI_CLOCK 
+#define AM62L_SCMI_CLOCK_MUX AM62L_SCMI_CLOCK
 #define AM62L_SCMI_CLOCK_PARENT AM62L_SCMI_CLOCK
 #define AM62L_SCMI_CLOCK_OUTPUT AM62L_SCMI_CLOCK
 #define AM62L_SCMI_CLOCK_MUX AM62L_SCMI_CLOCK
@@ -44,11 +44,11 @@
  * Hence, use a range from 0 to maximum supported clock frequency.
  */
 static unsigned long am62l_rates[] = {
-  0, 2000000000, 1,
+	0, 2000000000, 1,
 };
 
 ti_scmi_clock_t clock_table[] = {
-        AM62L_SCMI_CLOCK_MUX(AM62LX_DEV_ADC0, AM62LX_DEV_ADC0_ADC_CLK, str(ADC0)),
+	AM62L_SCMI_CLOCK_MUX(AM62LX_DEV_ADC0, AM62LX_DEV_ADC0_ADC_CLK, str(ADC0)),
 	AM62L_SCMI_CLOCK_PARENT(AM62LX_DEV_ADC0, AM62LX_DEV_ADC0_ADC_CLK_PARENT_GLUELOGIC_HFOSC0_CLK,str(ADC0)),
 	AM62L_SCMI_CLOCK_PARENT(AM62LX_DEV_ADC0, AM62LX_DEV_ADC0_ADC_CLK_PARENT_SAM62_PLL_CTRL_WRAP_WKUP_0_CHIP_DIV1_CLK_CLK12,str(ADC0)),
 	AM62L_SCMI_CLOCK_PARENT(AM62LX_DEV_ADC0, AM62LX_DEV_ADC0_ADC_CLK_PARENT_POSTDIV4_16FF_WKUP_0_HSDIVOUT8_CLK,str(ADC0)),
@@ -535,7 +535,7 @@ ti_scmi_clock_t clock_table[] = {
 };
 
 ti_scmi_clock_t *ti_scmi_get_clock(uint32_t agent_id __unused,
-					 uint32_t clock_id)
+				   uint32_t clock_id)
 {
 	ti_scmi_clock_t *table = NULL;
 
@@ -551,8 +551,8 @@ size_t plat_scmi_clock_count(unsigned int agent_id)
 }
 
 int32_t plat_scmi_clock_set_rate(unsigned int agent_id,
-				unsigned int scmi_id,
-				unsigned long rate)
+				 unsigned int scmi_id,
+				 unsigned long rate)
 {
 	VERBOSE("scmi_clock_set_rate scmi_id = %d rate = %lu\n", scmi_id, rate);
 	ti_scmi_clock_t *clock;
@@ -563,12 +563,12 @@ int32_t plat_scmi_clock_set_rate(unsigned int agent_id,
 		return 0;
 
 	ret = scmi_handler_clock_set_rate(clock->dev_id, clock->clock_id, rate);
-        if (ret) {
-                WARN("%s: Failed to set freq with scmi_id = %d rate = %ld\n",
+	if (ret) {
+		WARN("%s: Failed to set freq with scmi_id = %d rate = %ld\n",
 		     __func__, scmi_id, rate);
 		return SCMI_DENIED;
-        }
-	
+	}
+
 	return SCMI_SUCCESS;
 
 }
@@ -604,7 +604,7 @@ int32_t plat_scmi_clock_rates_by_step(unsigned int agent_id __unused,
 }
 
 unsigned long plat_scmi_clock_get_rate(unsigned int agent_id,
-					unsigned int scmi_id)
+				       unsigned int scmi_id)
 {
 	ti_scmi_clock_t *clock;
 	uint64_t rate;
@@ -630,14 +630,13 @@ int32_t plat_scmi_clock_get_state(unsigned int agent_id,
 
 	/* Also, PM framework can return unreq and auto state, linux expect req and auto state,
 	 *   for auto and req state, return value is always enabled */
-        return !!scmi_handler_clock_get_state(clock->dev_id, clock->clock_id);                 
+	return !!scmi_handler_clock_get_state(clock->dev_id, clock->clock_id);
 }
 
 int32_t plat_scmi_clock_set_state(unsigned int agent_id,
 				  unsigned int scmi_id,
 				  bool enable_not_disable)
 {
-
 	ti_scmi_clock_t *clock;
 
 	clock = ti_scmi_get_clock(agent_id, scmi_id);
@@ -647,65 +646,74 @@ int32_t plat_scmi_clock_set_state(unsigned int agent_id,
 	VERBOSE("%s: agent_id = %d, scmi_id = %d, enable: %d\n", __func__, agent_id, scmi_id, enable_not_disable);
 	if(enable_not_disable) {
 		return scmi_handler_clock_prepare(clock->dev_id, clock->clock_id);
-        } else {
-                return scmi_handler_clock_unprepare(clock->dev_id, clock->clock_id);
-        }
+	} else {
+		return scmi_handler_clock_unprepare(clock->dev_id, clock->clock_id);
+	}
 
 	return SCMI_INVALID_PARAMETERS;
 }
 
 int32_t plat_scmi_clock_get_possible_parents(unsigned int agent_id,
-				    unsigned int scmi_id,
-				    unsigned int *plat_possible_parents,
-				    size_t *nb_elts,
-				    uint32_t skip_parents)
+					     unsigned int scmi_id,
+					     unsigned int *plat_possible_parents,
+					     size_t *nb_elts,
+					     uint32_t skip_parents)
 {
-        VERBOSE("scmi_clock_get_possible_parents agent_id = %d, scmi_id = %d\n", agent_id, scmi_id);
-        ti_scmi_clock_t *clock;
+	VERBOSE("scmi_clock_get_possible_parents agent_id = %d, scmi_id = %d\n", agent_id, scmi_id);
+	ti_scmi_clock_t *clock;
 	clock = ti_scmi_get_clock(agent_id, scmi_id);
 	if (clock == 0)
 		return 0;
-	
-        *nb_elts = (uint64_t)scmi_handler_clock_get_num_clock_parents(clock->dev_id, clock->clock_id);
-        if(plat_possible_parents) {
-                for(uint32_t i = 0; i < (uint32_t)*nb_elts ;i++) {
-                        plat_possible_parents[i] = i;
-                }
-        }
-        VERBOSE("num_parents %d\n", (uint32_t)*nb_elts); 
-        return SCMI_SUCCESS;
+
+	*nb_elts = (uint64_t)scmi_handler_clock_get_num_clock_parents(clock->dev_id, clock->clock_id);
+	if(plat_possible_parents) {
+		for(uint32_t i = 0; i < (uint32_t)*nb_elts ;i++) {
+			plat_possible_parents[i] = i;
+		}
+	}
+	VERBOSE("num_parents %d\n", (uint32_t)*nb_elts);
+	return SCMI_SUCCESS;
 }
 
 
 int32_t plat_scmi_clock_get_parent(unsigned int agent_id,
-                                   unsigned int scmi_id)
+				   unsigned int scmi_id)
 {
 	ti_scmi_clock_t *clock;
-        uint32_t parent_id = 0;
+	uint32_t parent_id = 0;
+	int32_t status = 0;
 
 	VERBOSE("scmi_clock_get_parent agent_id = %d, scmi_id = %d\n", agent_id, scmi_id);
 	clock = ti_scmi_get_clock(agent_id, scmi_id);
 	if (clock == 0)
 		return 0;
 
-         parent_id = scmi_handler_clock_get_clock_parent(clock->dev_id, clock->clock_id);
-         parent_id = parent_id - clock->clock_id - 1;
-         VERBOSE("scmi_clock_get_parent parent_id %d\n", parent_id);
-         return parent_id;
+	status = scmi_handler_clock_get_clock_parent(clock->dev_id, clock->clock_id, &parent_id);
+	if(status)
+		parent_id = 0;
+	else
+		parent_id = parent_id - clock->clock_id - 1;
+
+	VERBOSE("scmi_clock_get_parent parent_id = %d\n", parent_id);
+	return parent_id;
 }
 
 int32_t plat_scmi_clock_set_parent(unsigned int agent_id,
-                                   unsigned int scmi_id,
-                                   unsigned int parent_id)
+				   unsigned int scmi_id,
+				   unsigned int parent_id)
 {
 	ti_scmi_clock_t *clock;
+	int32_t status = 0;
 
 	VERBOSE("plat_scmi_clock_set_parent agent_id = %d, scmi_id = %d parent_id = %d\n", agent_id, scmi_id, parent_id);
 	clock = ti_scmi_get_clock(agent_id, scmi_id);
 	if (clock == 0)
 		return 0;
 
-        parent_id = parent_id + clock->clock_id + 1;
-        scmi_handler_clock_set_clock_parent(clock->dev_id, clock->clock_id, parent_id);
-        return SCMI_SUCCESS;
+	parent_id = parent_id + clock->clock_id + 1;
+	status = scmi_handler_clock_set_clock_parent(clock->dev_id, clock->clock_id, parent_id);
+	if(status)
+		return SCMI_DENIED;
+
+	return SCMI_SUCCESS;
 }

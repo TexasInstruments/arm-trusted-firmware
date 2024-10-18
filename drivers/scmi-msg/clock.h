@@ -106,8 +106,8 @@ struct scmi_clock_config_set_a2p {
 	uint32_t clock_id;
 	uint32_t attributes;
 #if SCMI_PROTOCOL_VERSION_CLOCK >= 0x30000U
-        uint32_t oem_config_val;
-#endif        
+	uint32_t oem_config_val;
+#endif
 };
 
 struct scmi_clock_config_set_p2a {
@@ -117,12 +117,6 @@ struct scmi_clock_config_set_p2a {
 /*
  * Clock Config Get
  */
-
-#define SCMI_CLOCK_CONFIG_GET_ENABLE_POS	0
-
-#define SCMI_CLOCK_CONFIG_GET_ENABLE_MASK \
-	BIT(SCMI_CLOCK_CONFIG_GET_ENABLE_POS)
-
 struct scmi_clock_config_get_a2p {
 	uint32_t clock_id;
 	uint32_t flags;
@@ -130,45 +124,45 @@ struct scmi_clock_config_get_a2p {
 
 struct scmi_clock_config_get_p2a {
 	int32_t status;
-        uint32_t attributes;
-        uint32_t config;
+	uint32_t attributes;
+	uint32_t config;
 };
 
-/* 
+/*
  * Clock Possible Parents
  */
 struct scmi_clock_possible_parents_get_a2p {
-        uint32_t clock_id;
-        uint32_t skip_parents;
+	uint32_t clock_id;
+	uint32_t skip_parents;
 };
 
 struct scmi_clock_possible_parents_get_p2a {
-        int32_t status;
+	int32_t status;
 	uint32_t num_parents_flags;
-#define NUM_PARENTS_RETURNED(x)		((x) & 0xff)
-#define NUM_PARENTS_REMAINING(x)	((x) >> 24)
 	uint32_t possible_parents[];
-	
+
 };
 
-/* 
+/*
  * Clock Parent Get
  */
+#define SCMI_CLOCK_PARENT_GET_ENABLE_POS	28
+
 struct scmi_clock_parent_get_a2p {
 	uint32_t clock_id;
 };
 
 struct scmi_clock_parent_get_p2a {
 	int32_t status;
-        uint32_t parent_id;
+	uint32_t parent_id;
 };
 
-/* 
+/*
  * Clock Parent Set
  */
 struct scmi_clock_parent_set_a2p {
 	uint32_t clock_id;
-        uint32_t parent_id;
+	uint32_t parent_id;
 };
 
 struct scmi_clock_parent_set_p2a {

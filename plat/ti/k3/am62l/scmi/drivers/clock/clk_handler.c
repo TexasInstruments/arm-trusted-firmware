@@ -157,12 +157,12 @@ int32_t get_clock_handler(struct tisci_msg_get_clock_req *msg_recv)
 		uint8_t state;
 
 		prog = (uint8_t) (device_clk_get_sw_gated(dev, clkidx) ?
-			     TISCI_MSG_VALUE_CLOCK_SW_STATE_UNREQ :
-			     TISCI_MSG_VALUE_CLOCK_SW_STATE_AUTO);
+				  TISCI_MSG_VALUE_CLOCK_SW_STATE_UNREQ :
+				  TISCI_MSG_VALUE_CLOCK_SW_STATE_AUTO);
 
 		state = (uint8_t) (device_clk_get_hw_ready(dev, clkidx) ?
-			      TISCI_MSG_VALUE_CLOCK_HW_STATE_READY :
-			      TISCI_MSG_VALUE_CLOCK_HW_STATE_NOT_READY);
+				   TISCI_MSG_VALUE_CLOCK_HW_STATE_READY :
+				   TISCI_MSG_VALUE_CLOCK_HW_STATE_NOT_READY);
 
 		if (device_clk_get_ssc(dev, clkidx)) {
 			resp->hdr.flags |= TISCI_MSG_FLAG_CLOCK_ALLOW_SSC;
@@ -180,8 +180,8 @@ int32_t get_clock_handler(struct tisci_msg_get_clock_req *msg_recv)
 			resp->hdr.flags |= TISCI_MSG_FLAG_CLOCK_INPUT_TERM;
 		}
 
-		resp->programmed_state  = prog;
-		resp->current_state     = state;
+		resp->programmed_state	= prog;
+		resp->current_state	= state;
 	}
 
 	mmr_lock_all();
