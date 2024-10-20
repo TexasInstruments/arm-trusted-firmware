@@ -398,10 +398,11 @@ static void scmi_clock_config_set(struct scmi_msg *msg)
 	bool enable = false;
 	unsigned int clock_id = 0U;
 
-	if (msg->in_size != sizeof(*in_args)) {
-		scmi_status_response(msg, SCMI_PROTOCOL_ERROR);
-		return;
-	}
+	/* This breaks compatibility between version */
+	/* if (msg->in_size != sizeof(*in_args)) {
+	 * 	scmi_status_response(msg, SCMI_PROTOCOL_ERROR);
+	 * 	return;
+	 * } */
 
 	clock_id = SPECULATION_SAFE_VALUE(in_args->clock_id);
 

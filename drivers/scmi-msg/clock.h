@@ -105,9 +105,9 @@ struct scmi_clock_rate_set_p2a {
 struct scmi_clock_config_set_a2p {
 	uint32_t clock_id;
 	uint32_t attributes;
-#if SCMI_PROTOCOL_VERSION_CLOCK >= 0x30000U
-	uint32_t oem_config_val;
-#endif
+/* #if SCMI_PROTOCOL_VERSION_CLOCK >= 0x30000U
+ * 	uint32_t oem_config_val;
+ * #endif */
 };
 
 struct scmi_clock_config_set_p2a {
