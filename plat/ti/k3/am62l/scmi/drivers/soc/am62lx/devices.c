@@ -1096,8 +1096,8 @@ static const struct lpsc_module_data am62lx_sam61_wkup_psc_wrap_wkup_0_mod_data[
 		.depends_psc_idx = AM62LX_PSC_INST_SAM61_WKUP_PSC_WRAP_WKUP_0,
 		.depends = AM62LX_PSC_LPSC_LPSC_MAIN_GP_USB0,
 		.lpsc_dev.dev_array = {
+			AM62LX_DEV_MAIN_USB0_ISO_VD,
 			DEV_ID_NONE,
-			0,
 			0,
 			0,
 		},
@@ -1120,8 +1120,8 @@ static const struct lpsc_module_data am62lx_sam61_wkup_psc_wrap_wkup_0_mod_data[
 		.depends_psc_idx = AM62LX_PSC_INST_SAM61_WKUP_PSC_WRAP_WKUP_0,
 		.depends = AM62LX_PSC_LPSC_LPSC_MAIN_GP_USB1,
 		.lpsc_dev.dev_array = {
+			AM62LX_DEV_MAIN_USB1_ISO_VD,
 			DEV_ID_NONE,
-			0,
 			0,
 			0,
 		},
@@ -1246,8 +1246,8 @@ static const struct lpsc_module_data am62lx_sam61_wkup_psc_wrap_wkup_0_mod_data[
 		.depends_psc_idx = AM62LX_PSC_INST_SAM61_WKUP_PSC_WRAP_WKUP_0,
 		.depends = AM62LX_PSC_LPSC_LPSC_MAIN_DDR_LOCAL,
 		.lpsc_dev.dev_array = {
+			AM62LX_DEV_EMIF_CFG_ISO_VD,
 			DEV_ID_NONE,
-			0,
 			0,
 			0,
 		},
@@ -1258,8 +1258,8 @@ static const struct lpsc_module_data am62lx_sam61_wkup_psc_wrap_wkup_0_mod_data[
 		.depends_psc_idx = AM62LX_PSC_INST_SAM61_WKUP_PSC_WRAP_WKUP_0,
 		.depends = AM62LX_PSC_LPSC_LPSC_MAIN_DDR_CFG_ISO_N,
 		.lpsc_dev.dev_array = {
+			AM62LX_DEV_EMIF_DATA_ISO_VD,
 			DEV_ID_NONE,
-			0,
 			0,
 			0,
 		},
@@ -2303,6 +2303,38 @@ static const struct dev_data am62lx_dev_obsclk0_mux_sel_dev_VD __attribute__((__
 	.n_clocks = 12,
 	.pm_devgrp = PM_DEVGRP_00,
 };
+static const struct dev_data am62lx_dev_main_usb0_iso_VD __attribute__((__section__(".const.devgroup.MAIN"))) = {
+	.soc = {
+		.psc_idx = AM62LX_PSC_INST_SAM61_WKUP_PSC_WRAP_WKUP_0,
+		.pd = AM62LX_PSC_PD_GP_CORE_CTL,
+		.mod = AM62LX_PSC_LPSC_LPSC_MAIN_GP_USB0_ISO_N,
+	},
+	.pm_devgrp = PM_DEVGRP_00,
+};
+static const struct dev_data am62lx_dev_main_usb1_iso_VD __attribute__((__section__(".const.devgroup.MAIN"))) = {
+	.soc = {
+		.psc_idx = AM62LX_PSC_INST_SAM61_WKUP_PSC_WRAP_WKUP_0,
+		.pd = AM62LX_PSC_PD_GP_CORE_CTL,
+		.mod = AM62LX_PSC_LPSC_LPSC_MAIN_GP_USB1_ISO_N,
+	},
+	.pm_devgrp = PM_DEVGRP_00,
+};
+static const struct dev_data am62lx_dev_emif_cfg_iso_VD __attribute__((__section__(".const.devgroup.MAIN"))) = {
+	.soc = {
+		.psc_idx = AM62LX_PSC_INST_SAM61_WKUP_PSC_WRAP_WKUP_0,
+		.pd = AM62LX_PSC_PD_PD_DDR,
+		.mod = AM62LX_PSC_LPSC_LPSC_MAIN_DDR_CFG_ISO_N,
+	},
+	.pm_devgrp = PM_DEVGRP_00,
+};
+static const struct dev_data am62lx_dev_emif_data_iso_VD __attribute__((__section__(".const.devgroup.MAIN"))) = {
+	.soc = {
+		.psc_idx = AM62LX_PSC_INST_SAM61_WKUP_PSC_WRAP_WKUP_0,
+		.pd = AM62LX_PSC_PD_PD_DDR,
+		.mod = AM62LX_PSC_LPSC_LPSC_MAIN_DDR_DATA_ISO_N,
+	},
+	.pm_devgrp = PM_DEVGRP_00,
+};
 
 static const struct dev_clk_data MAIN_dev_clk_data[604] __attribute__((__section__(".const.devgroup.MAIN"))) = {
 	DEV_CLK_MUX(AM62LX_DEV_ADC12_CORE_MAIN_0_CLOCKS, AM62LX_DEV_ADC0_ADC_CLK, CLK_AM62LX_ADC0_CLKSEL_OUT0, 1, 4),
@@ -2808,7 +2840,7 @@ const size_t soc_devgroup_count = ARRAY_SIZE(soc_devgroups);
 const struct soc_device_data * const soc_psc_multiple_domains[1] = {
 };
 
-const struct dev_data * const soc_device_data_arr[AM62LX_DEV_OBSCLK0_MUX_SEL_DEV_VD + 1U] = {
+const struct dev_data * const soc_device_data_arr[AM62LX_DEV_EMIF_DATA_ISO_VD + 1U] = {
 	[AM62LX_DEV_ADC0] = &am62lx_dev_adc12_core_main_0,
 	[AM62LX_DEV_MAIN_GPIOMUX_INTROUTER0] = &am62lx_dev_am62l_main_gpiomux_introuter_main_0,
 	[AM62LX_DEV_TIMESYNC_INTROUTER0] = &am62lx_dev_am62l_timesync_introuter_main_0,
@@ -2907,9 +2939,13 @@ const struct dev_data * const soc_device_data_arr[AM62LX_DEV_OBSCLK0_MUX_SEL_DEV
 	[AM62LX_DEV_WKUP_OBSCLK_MUX_SEL_DEV_VD] = &am62lx_dev_wkup_obsclk_mux_sel_dev_VD,
 	[AM62LX_DEV_WKUP_CLKOUT_SEL_DEV_VD] = &am62lx_dev_wkup_clkout_sel_dev_VD,
 	[AM62LX_DEV_OBSCLK0_MUX_SEL_DEV_VD] = &am62lx_dev_obsclk0_mux_sel_dev_VD,
+	[AM62LX_DEV_MAIN_USB0_ISO_VD] = &am62lx_dev_main_usb0_iso_VD,
+	[AM62LX_DEV_MAIN_USB1_ISO_VD] = &am62lx_dev_main_usb1_iso_VD,
+	[AM62LX_DEV_EMIF_CFG_ISO_VD] = &am62lx_dev_emif_cfg_iso_VD,
+	[AM62LX_DEV_EMIF_DATA_ISO_VD] = &am62lx_dev_emif_data_iso_VD,
 };
 
-struct device soc_devices[AM62LX_DEV_OBSCLK0_MUX_SEL_DEV_VD + 1U];
+struct device soc_devices[AM62LX_DEV_EMIF_DATA_ISO_VD + 1U];
 const size_t soc_device_count = ARRAY_SIZE(soc_device_data_arr);
 
 struct device * const this_dev = soc_devices;
