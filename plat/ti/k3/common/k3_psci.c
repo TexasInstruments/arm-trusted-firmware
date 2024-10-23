@@ -12,6 +12,7 @@
 #include <lib/el3_runtime/cpu_data.h>
 #include <lib/psci/psci.h>
 #include <plat/common/platform.h>
+#include <lib/mmio.h>
 
 #include <ti_sci_protocol.h>
 #include <k3_gicv3.h>
@@ -23,6 +24,9 @@
 #define CORE_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL0])
 #define CLUSTER_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL1])
 #define SYSTEM_PWR_STATE(state) ((state)->pwr_domain_state[PLAT_MAX_PWR_LVL])
+
+#define WKUP_CTRL_MMR0_DEVICE_MANAGEMENT_BASE	(0x43050000UL)
+#define WKUP_CTRL_MMR0_DEVICE_RESET_OFFSET	(0x4000)
 
 uintptr_t k3_sec_entrypoint;
 uintptr_t k3_sec_entrypoint_glob;
@@ -135,7 +139,12 @@ static void __dead2 k3_system_off(void)
 static void __dead2 k3_system_reset(void)
 {
 	/* Send the system reset request to system firmware */
+#ifdef K3_TI_SCI_MAILBOX
+	INFO("TF-A: %s: AM62L: Resetting device\n", __func__);
+	mmio_write_32(WKUP_CTRL_MMR0_DEVICE_MANAGEMENT_BASE + WKUP_CTRL_MMR0_DEVICE_RESET_OFFSET, 0x6);
+#else
 	ti_sci_core_reboot();
+#endif
 
 	while (true)
 		wfi();
