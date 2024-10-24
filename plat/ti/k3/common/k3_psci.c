@@ -34,6 +34,198 @@
 uintptr_t k3_sec_entrypoint;
 uintptr_t k3_sec_entrypoint_glob;
 
+/*********** PROC BOOT CODE ******************/
+
+#include <lib/mmio.h>
+
+/* power domain indices */
+#define GP_CORE_CTL     0
+#define PD_CRYPTO       1
+#define PD_DDR          2
+#define PD_MAIN_IP      3
+#define PD_MPU_CLST     4
+#define PD_MPU_CLST_CORE_0      5
+#define PD_MPU_CLST_CORE_1      6
+#define PD_PER                  9
+
+/* lpsc indices */
+#define LPSC_MAIN_GP_ALWAYSON           0
+#define LPSC_MAIN_GP_TEST                       1
+#define LPSC_MAIN_GP_PBIST                      2
+#define LPSC_MAIN_GP_ISO0_N                     3
+#define LPSC_MAIN_GP_ISO1_N                     4
+#define LPSC_MAIN_GP_TIFS                       5
+#define LPSC_MAIN_GP_USB0                       7
+#define LPSC_MAIN_GP_USB0_ISO_N         8
+#define LPSC_MAIN_GP_USB1                       9
+#define LPSC_MAIN_GP_USB1_ISO_N         10
+#define LPSC_MAIN_GP_DPHY_TX            11
+#define LPSC_MAIN_GP_WKPERI                     18
+#define LPSC_MAIN_CRYPTO                        19
+#define LPSC_MAIN_DDR_LOCAL                     21
+#define LPSC_MAIN_DDR_CFG_ISO_N         22
+#define LPSC_MAIN_DDR_DATA_ISO_N        23
+#define LPSC_MAIN_IP_COMMON                     24
+#define LPSC_MAIN_IP_DSS                        25
+#define LPSC_MAIN_IP_DSI                        26
+#define LPSC_MAIN_IP_EMMC8B                     27
+#define LPSC_MAIN_IP_EMMC4B0            28
+#define LPSC_MAIN_IP_EMMC4B1            29
+#define LPSC_MAIN_IP_CPSW                       30
+#define LPSC_MAIN_IP_GIC                        32
+#define LPSC_MAIN_IP_PBIST                      33
+#define LPSC_MAIN_MPU_CLST                      38
+#define LPSC_MAIN_MPU_CLST_PBIST        39
+#define LPSC_MAIN_MPU_CLST_CORE_0       40
+#define LPSC_MAIN_MPU_CLST_CORE_1       41
+#define LPSC_MAIN_PER_COMMON            44
+#define LPSC_MAIN_PER_MCASP0            45
+#define LPSC_MAIN_PER_MCASP1            46
+#define LPSC_MAIN_PER_MCASP2            47
+#define LPSC_MAIN_PER_XSPI                      48
+#define LPSC_MAIN_PER_MCAN0                     49
+#define LPSC_MAIN_PER_MCAN1                     50
+#define LPSC_MAIN_PER_MCAN2                     51
+#define LPSC_MAIN_PER_GPMC                      52
+
+#define PSC_SYNCRESETDISABLE            		(0x0)
+#define PSC_SYNCRESET                           (0x1)
+#define PSC_DISABLE                             (0x2)
+#define PSC_ENABLE                              (0x3)
+#define PSC_PD_OFF                                      (0x0)
+#define PSC_PD_ON                                       (0x1)
+
+#define LPSC_DDR16SS0 21
+#define LPSC_EMIF_CFG 22
+#define LPSC_EMIF_DATA 23
+
+// #define PSC_PTCMD	(0x120)
+// #define PSC_PTSTAT  (0x128)
+#define MAIN_PSC_BASE 0x00400000
+#define MAIN_PSC_MDCTL_BASE 0x00400A00
+#define MAIN_PSC_MDSTAT_BASE 0x00400800
+#define MAIN_PSC_PDCTL_BASE 0x00400300
+#define MAIN_PSC_PDSTAT_BASE 0x00400200
+#define MAIN_PSC_PTSTAT (MAIN_PSC_BASE + PSC_PTSTAT)
+#define MAIN_PSC_PTCMD (MAIN_PSC_BASE + PSC_PTCMD)
+
+#define PSC_PTCMD               0x120
+#define PSC_PTCMD_H             0x124
+#define PSC_PTSTAT              0x128
+#define PSC_PTSTAT_H            0x12C
+#define PSC_PDSTAT              0x200
+#define PSC_PDCTL               0x300
+#define PSC_MDSTAT              0x800
+#define PSC_MDCTL               0xa00
+
+#define PDCTL_STATE_MASK                0x1
+#define PDCTL_STATE_OFF                 0x0
+#define PDCTL_STATE_ON                  0x1
+
+#define MDSTAT_STATE_MASK               0x3f
+#define MDSTAT_BUSY_MASK                0x30
+#define MDSTAT_STATE_SWRSTDISABLE       0x0
+#define MDSTAT_STATE_ENABLE             0x3
+
+#if 0
+static uint32_t lpsc_read(uint32_t lpsc_idx, uint32_t reg)
+{
+	uint32_t val;
+
+   	val = mmio_read_32(PSC_ADDR + (reg + 4*lpsc_idx));
+	return val;
+}
+
+static void lpsc_write(uint32_t lpsc_idx, uint32_t reg, uint32_t val)
+{
+
+    mmio_write_32(PSC_ADDR + (reg + 4*lpsc_idx),val);
+}
+
+static void lpsc_transition(uint32_t lpsc_idx, uint32_t state)
+{
+	uint32_t mdctl;
+
+	mdctl = lpsc_read(lpsc_idx, PSC_MDCTL);
+
+    mdctl &= ~MDSTAT_STATE_MASK;
+    mdctl |= state;
+
+	lpsc_write(lpsc_idx, PSC_MDCTL, mdctl);
+
+    // add code to transisiion pd as well
+}
+
+#endif
+
+static void __unused set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint32_t md_state)
+{
+	uint32_t	*mdctrl_ptr;
+	volatile uint32_t	mdctrl;
+	uint32_t	*mdstat_ptr;
+	volatile uint32_t	mdstat;
+	uint32_t	*pdctrl_ptr;
+	volatile uint32_t	pdctrl;
+	uint32_t	*pdstat_ptr;
+	volatile uint32_t	pdstat;
+	volatile uint32_t	psc_ptstat;
+	volatile uint32_t	psc_ptcmd;
+
+
+	mdctrl_ptr = (uint32_t*) (uint64_t) ((MAIN_PSC_MDCTL_BASE + (4*md_id)));
+	mdctrl = (uint32_t) *((uint32_t*)mdctrl_ptr);
+	mdstat_ptr = (uint32_t*) (uint64_t) ((MAIN_PSC_MDSTAT_BASE + (4*md_id)));
+	mdstat = (uint32_t) *((uint32_t*)mdstat_ptr);
+	pdctrl_ptr = (uint32_t*) (uint64_t) ((MAIN_PSC_PDCTL_BASE + (4*pd_id)));
+	pdctrl = (uint32_t) *((uint32_t*)pdctrl_ptr);
+	pdstat_ptr = (uint32_t*) (uint64_t) ((MAIN_PSC_PDSTAT_BASE + (4*pd_id)));
+	pdstat = (uint32_t) *((uint32_t*)pdstat_ptr);
+
+	ERROR("%s: before: md_id=%d, mdstat=0x%x, pdstat=0x%x \n",__func__,md_id,mdstat,pdstat);
+
+	if (((pdstat & 0x1) == pd_state) && ((mdstat & 0x1f) == md_state))
+		return;
+
+	// wait for GOSTAT to clear
+	// may need a timeout
+	psc_ptstat = *((uint32_t*) MAIN_PSC_PTSTAT);
+
+	while ((psc_ptstat & (0x1 << pd_id)) !=0)
+		psc_ptstat = *((uint32_t*) MAIN_PSC_PTSTAT);
+
+	// Set PDCTL NEXT to new state
+	*pdctrl_ptr = (pdctrl & ~(0x1)) | pd_state;
+
+	// Set MDCTL NEXT to new state
+	*mdctrl_ptr = (mdctrl & ~(0x1f)) | md_state;
+
+	// start power transisition by setti ng PTCMD Go to 1
+	psc_ptcmd = *((uint32_t*) MAIN_PSC_PTCMD);
+	psc_ptcmd |= (0x1 << pd_id);
+
+	*((uint32_t*) MAIN_PSC_PTCMD) = psc_ptcmd;
+
+	if (!md_state)
+		return;
+
+	// wait for GOSTAT to clear
+	// may need a timeout
+	psc_ptstat = *((uint32_t*) MAIN_PSC_PTSTAT);
+	while ((psc_ptstat & (0x1 << pd_id)) !=0)
+		psc_ptstat = *((uint32_t*) MAIN_PSC_PTSTAT);
+
+	//check states
+	mdstat = (uint32_t) *((uint32_t*)mdstat_ptr);
+	pdstat = (uint32_t) *((uint32_t*)pdstat_ptr);
+
+	ERROR("%s: after: md_id=%d, mdstat=0x%x, pdstat=0x%x \n",__func__,md_id,mdstat,pdstat);
+
+}
+
+
+/*********** PROC BOOT CODE ENDS******************/
+
+
 static void k3_cpu_standby(plat_local_state_t cpu_state)
 {
 	u_register_t scr;
@@ -50,9 +242,13 @@ static void k3_cpu_standby(plat_local_state_t cpu_state)
 	write_scr_el3(scr);
 }
 
+volatile int HOLDIIT=0x1234BEEF;
+volatile int cnt=3;
+
 static int k3_pwr_domain_on(u_register_t mpidr)
 {
 	int core, proc_id, ret;
+	HOLDIIT = 0xFEEFBEEF;
 
 	core = plat_core_pos_by_mpidr(mpidr);
 	if (core < 0) {
@@ -86,7 +282,8 @@ static int k3_pwr_domain_on(u_register_t mpidr)
 		return PSCI_E_INTERN_FAIL;
 	}
 
-	scmi_handler_device_state_set_on(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
+	// scmi_handler_device_state_set_on(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
+	set_main_psc_state(PD_MPU_CLST_CORE_1, LPSC_MAIN_MPU_CLST_CORE_1, PSC_PD_ON, PSC_ENABLE);
 
 	return PSCI_E_SUCCESS;
 }
@@ -98,9 +295,9 @@ static void k3_pwr_domain_off(const psci_power_state_t *target_state)
 
 static void __dead2 k3_pwr_domain_off_wfi(const psci_power_state_t *target_state)
 {
-	int core;
+	// int core;
 
-	core = plat_my_core_pos();
+	// core = plat_my_core_pos();
 
 	/* At very least the local core should be powering down */
 	assert(CORE_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE);
@@ -110,7 +307,8 @@ static void __dead2 k3_pwr_domain_off_wfi(const psci_power_state_t *target_state
 
 	/* If our cluster is not going down we stop here */
 	if (CLUSTER_PWR_STATE(target_state) != PLAT_MAX_OFF_STATE) {
-		scmi_handler_device_state_set_off(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
+		// scmi_handler_device_state_set_off(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
+		set_main_psc_state(PD_MPU_CLST_CORE_1, LPSC_MAIN_MPU_CLST_CORE_1, PSC_PD_OFF, PSC_SYNCRESETDISABLE);
 	}
 	
 	while(1)
