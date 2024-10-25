@@ -24,6 +24,9 @@
 #define WKUP0_EN                    		(0x4030U)
 #define RST_CTRL 							(0x4000U)
 #define PMCTRL_SYS							(0x80)
+#define WKUP_CTRL_PMCTRL_IO_0 				(0x84)
+#define WKUP_CTRL_PMCTRL_IO_1				(0x88)
+#define WKUP_CTRL_DEEPSLEEP_CTRL			(0x160)
 #define CANUART_WAKE_RESUME_KEY0_STAT   	(0x3100U)
 #define CANUART_WAKE_OFF_MODE				(0x1310U)
 #define CANUART_WAKE_OFF_MODE_STAT1			(0x130CU)
@@ -35,6 +38,26 @@
 #define MAIN_PSC_BASE  							(0x400000UL)
 #define PLLOFFSET(idx) 					(0x1000 * (idx))
 #define SCTLR_EL3_M_BIT				((uint32_t)1U << 0)
+
+#define WKUP_CTRL_PMCTRL_IO_GLB_ENABLE_IO      1
+#define WKUP_CTRL_DEEPSLEEP_CTRL_ENABLE_IO     (0x101U)
+#define WKUP_CTRL_DEEPSLEEP_CTRL_DISABLE_IO      0
+#define WKUP_CTRL_PMCTRL_IO_GLB_DISABLE_IO     0
+#define WKUP_CTRL_PMCTRL_IO_0_ISOCLK_OVRD   BIT(0)
+#define WKUP_CTRL_PMCTRL_IO_0_ISOOVR_EXTEND BIT(4)
+#define WKUP_CTRL_PMCTRL_IO_0_ISO_BYPASS    BIT(6)
+#define WKUP_CTRL_PMCTRL_IO_0_WUCLK_CTRL    BIT(8)
+#define WKUP_CTRL_PMCTRL_IO_0_IO_ISO_STATUS BIT(25)
+#define WKUP_CTRL_PMCTRL_IO_0_WUCLK_STATUS_ENABLED  1U
+#define WKUP_CTRL_PMCTRL_IO_0_WUCLK_STATUS_DISABLED 0U
+#define WKUP_CTRL_PMCTRL_IO_0_GLOBAL_WUEN   BIT(16)
+#define WKUP_CTRL_PMCTRL_IO_0_IO_ISO_CTRL   BIT(24)
+#define WKUP_CTRL_PMCTRL_IO_0_WRITE_MASK (WKUP_CTRL_PMCTRL_IO_0_ISOCLK_OVRD	\
+					  | WKUP_CTRL_PMCTRL_IO_0_ISOOVR_EXTEND	 \
+					  | WKUP_CTRL_PMCTRL_IO_0_ISO_BYPASS	 \
+					  | WKUP_CTRL_PMCTRL_IO_0_WUCLK_CTRL	 \
+					  | WKUP_CTRL_PMCTRL_IO_0_GLOBAL_WUEN	 \
+					  | WKUP_CTRL_PMCTRL_IO_0_IO_ISO_CTRL)
 
 /* counts of 1us delay for 10ms */
 #define TIMEOUT_10MS                    10000U
@@ -240,7 +263,7 @@ __wkupsramsuspendentry void k3_lpm_stub_entry(uint32_t mode)
 		lpm_seq_trace(0x4);
 		dsb();
 		isb();
-
+	
 		for (;;)
 			wfi();
 
@@ -268,14 +291,88 @@ __wkupsramsuspendentry void k3_lpm_stub_entry(uint32_t mode)
 		}
 	} else  {
 		for (;;) {
-		lpm_seq_trace(0x88);
+			lpm_seq_trace(0x88);
 		}
-				}
-	}
-			
+	}	
+}
 
-	}
+int32_t k3_lpm_set_io_isolation(bool enable)
+{
+	int32_t ret = -55;
+	uint32_t reg;
 
+	if (enable) {
+		mmio_write_32((WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_DEEPSLEEP_CTRL), WKUP_CTRL_DEEPSLEEP_CTRL_ENABLE_IO);
+		// writel(WKUP_CTRL_PMCTRL_IO_GLB_ENABLE_IO, (WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_GLB));
+
+		/* Set global wuen */
+		reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_0);
+		reg = reg & WKUP_CTRL_PMCTRL_IO_0_WRITE_MASK;
+		reg = reg | WKUP_CTRL_PMCTRL_IO_0_GLOBAL_WUEN;
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_0, reg);
+
+		reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_1);
+		reg = reg & WKUP_CTRL_PMCTRL_IO_0_WRITE_MASK;
+		reg = reg | WKUP_CTRL_PMCTRL_IO_0_GLOBAL_WUEN;
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_1, reg);
+
+		/* Set global isoin */
+		reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_0);
+		reg = reg & WKUP_CTRL_PMCTRL_IO_0_WRITE_MASK;
+		reg = reg | WKUP_CTRL_PMCTRL_IO_0_IO_ISO_CTRL;
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_0, reg);
+
+		reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_1);
+		reg = reg & WKUP_CTRL_PMCTRL_IO_0_WRITE_MASK;
+		reg = reg | WKUP_CTRL_PMCTRL_IO_0_IO_ISO_CTRL;
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_1, reg);
+
+		/* Wait for wu clock state to be 1*/
+		do {
+			ret = -52;
+			reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_0);
+			if ((reg & WKUP_CTRL_PMCTRL_IO_0_IO_ISO_STATUS) == WKUP_CTRL_PMCTRL_IO_0_IO_ISO_STATUS) {
+				ret = 0;
+				break;
+			}
+		} while (1);
+		do {
+			ret = -52;
+			reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_1);
+			if ((reg & WKUP_CTRL_PMCTRL_IO_0_IO_ISO_STATUS) == WKUP_CTRL_PMCTRL_IO_0_IO_ISO_STATUS) {
+				ret = 0;
+				break;
+			}
+		} while (1);
+	} else {
+		/* Clear global wuen */
+		reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_0);
+		reg = reg & WKUP_CTRL_PMCTRL_IO_0_WRITE_MASK;
+		reg = reg & (~WKUP_CTRL_PMCTRL_IO_0_GLOBAL_WUEN);
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_0, reg);
+
+		reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_1);
+		reg = reg & WKUP_CTRL_PMCTRL_IO_0_WRITE_MASK;
+		reg = reg & (~WKUP_CTRL_PMCTRL_IO_0_GLOBAL_WUEN);
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_1, reg);
+
+		/* Clear global isoin */
+		reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_0);
+		reg = reg & WKUP_CTRL_PMCTRL_IO_0_WRITE_MASK;
+		reg = reg & (~WKUP_CTRL_PMCTRL_IO_0_IO_ISO_CTRL);
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_0, reg);
+
+		reg = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_1);
+		reg = reg & WKUP_CTRL_PMCTRL_IO_0_WRITE_MASK;
+		reg = reg & (~WKUP_CTRL_PMCTRL_IO_0_IO_ISO_CTRL);
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_1, reg);
+
+		mmio_write_32((WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_DEEPSLEEP_CTRL), WKUP_CTRL_DEEPSLEEP_CTRL_DISABLE_IO);
+		// writel(WKUP_CTRL_PMCTRL_IO_GLB_DISABLE_IO, (WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_IO_GLB));
+
+		ret = 0;
+	}
+	return ret;
 }
 
 /**

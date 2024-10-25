@@ -54,6 +54,12 @@ void k3_lpm_config_magic_words(uint32_t mode);
 bool k3_lpm_check_can_io_latch(void);
 
 /**
+ * @brief function to set/remove the IO isolation
+ * 
+ */
+int32_t k3_lpm_set_io_isolation(bool enable);
+
+/**
  * @brief abort function during lpm sequence
  * 
  */
