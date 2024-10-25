@@ -95,3 +95,12 @@ void ti_init_scmi_server(void)
 	ti_clk_and_dev_init();
 }
 
+
+void ti_init_scmi_channel(void)
+{
+	size_t i;
+
+	for (i = 0U; i < ARRAY_SIZE(scmi_channel); i++)
+		scmi_smt_init_agent_channel(&scmi_channel[i]);
+
+}

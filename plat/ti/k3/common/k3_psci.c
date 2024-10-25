@@ -19,7 +19,7 @@
 #include <ti_sci.h>
 #include <lpm_stub.h>
 #include <gtc.h>
-
+#include <plat_scmi_def.h>
 #include <device_wrapper.h>
 #include <devices.h>
 #include <rtc.h>
@@ -113,8 +113,6 @@ static void __dead2 k3_pwr_domain_off_wfi(const psci_power_state_t *target_state
 		scmi_handler_device_state_set_off(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
 	}
 	
-	k3_suspend_to_ram();
-
 	while(1)
 		wfi();
 }
@@ -198,6 +196,8 @@ static void k3_pwr_domain_suspend(const psci_power_state_t *target_state)
 		INFO("sent enter sleep message\n");
 	}
 
+	k3_suspend_to_ram();
+
 }
 
 static void k3_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
@@ -205,6 +205,8 @@ static void k3_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
 	k3_config_wake_sources(false);
 	k3_gic_restore_context();
 	k3_gic_cpuif_enable();
+	ti_init_scmi_channel();
+	k3_lpm_stub_copy_to_sram();
 	rtc_resume();
 }
 

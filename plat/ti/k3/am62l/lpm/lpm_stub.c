@@ -236,11 +236,10 @@ __wkupsramsuspendentry void k3_lpm_stub_entry(uint32_t mode)
 		lpm_seq_trace(0x3);
 
 		/* configure the pmic input */
-		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + PMCTRL_SYS, 0x0);
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + PMCTRL_SYS, 0x0U);
 		lpm_seq_trace(0x4);
-
-		/* issue a warm reset */
-		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + RST_CTRL, 0x6U);
+		dsb();
+		isb();
 
 		for (;;)
 			wfi();
@@ -259,10 +258,6 @@ __wkupsramsuspendentry void k3_lpm_stub_entry(uint32_t mode)
 		disable_main_pll();	
 		lpm_seq_trace(0x3);
 
-		/* configure the pmic input */
-		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + PMCTRL_SYS, 0x5);
-		lpm_seq_trace(0x4);
-
 		dsb();
 		isb();	
 		lpm_seq_trace(0x5);
@@ -271,6 +266,14 @@ __wkupsramsuspendentry void k3_lpm_stub_entry(uint32_t mode)
 			wfi();
 			lpm_seq_trace(0x6);
 		}
+	} else  {
+		for (;;) {
+		lpm_seq_trace(0x88);
+		}
+				}
+	}
+			
+
 	}
 
 }
