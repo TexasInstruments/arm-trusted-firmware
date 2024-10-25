@@ -53,6 +53,11 @@ void bl1_early_platform_setup(void)
 	uart_ptr = (uint32_t*) (PADCONF_ADDR+0x1b4);
 	*uart_ptr = 0x50000;
 	uart_ptr = (uint32_t*) (PADCONF_ADDR+0x1b8);
+	*uart_ptr = 0x10000;	
+	/* Set WKUP UART pins */
+	uart_ptr = (uint32_t*) (PADCONF_ADDR);
+	*uart_ptr = 0x50000;
+	uart_ptr = (uint32_t*) (PADCONF_ADDR+0x4);
 	*uart_ptr = 0x10000;
 
 	/* Initialize the console to provide early debug support */
