@@ -22,6 +22,7 @@
 
 #include <device_wrapper.h>
 #include <devices.h>
+#include <rtc.h>
 
 #define CORE_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL0])
 #define CLUSTER_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL1])
@@ -204,6 +205,7 @@ static void k3_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
 	k3_config_wake_sources(false);
 	k3_gic_restore_context();
 	k3_gic_cpuif_enable();
+	rtc_resume();
 }
 
 static void k3_get_sys_suspend_power_state(psci_power_state_t *req_state)

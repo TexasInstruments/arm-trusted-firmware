@@ -315,8 +315,7 @@ __wkupsramfunc void k3_lpm_resume_c(void)
 
 void k3_suspend_to_ram(void)
 {
-
-	rtc_init();
+	rtc_suspend();
 	k3_lpm_jump_to_stub();
 }
 

@@ -24,6 +24,7 @@
 #include <mailbox.h>
 #ifdef TI_AM62L_LPM
 #include <lpm_stub.h>
+#include <rtc.h>
 #endif
 
 #define ADDR_DOWN(_adr) (_adr & XLAT_ADDR_MASK(2U))
@@ -180,6 +181,7 @@ void bl31_platform_setup(void)
 	else {
 	  	INFO("A53 stub copy passed\n");
 	}
+	rtc_init();
 #endif
 }
 

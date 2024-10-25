@@ -30,4 +30,10 @@ void rtc_init();
  */
 void rtc_resume(void);
 
+/**
+ *  \brief  SUspend RTC for lower power mode entry
+ */
+void rtc_suspend(void);
+
+
 #endif /* __LPM_RTC_H__ */
