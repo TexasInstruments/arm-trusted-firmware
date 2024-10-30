@@ -22,6 +22,7 @@
 #define WFI_STATUS                  		(0x400)
 #define MPU_TIFS_WFI_MASK           		BIT(2)
 #define WKUP0_EN                    		(0x4030U)
+#define WKUP0_SRC                    		(0x4040U)
 #define RST_CTRL 							(0x4000U)
 #define PMCTRL_SYS							(0x80)
 #define WKUP_CTRL_PMCTRL_IO_0 				(0x84)
@@ -85,10 +86,14 @@ static void k3_lpm_jump_to_stub(void);
 
 void k3_config_wake_sources(bool enable)
 {
+	uint32_t wake_up_src;
 	if (enable) {
 		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP0_EN, 0x7FFFF);
 	} else {
+		wake_up_src = mmio_read_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP0_SRC);
+		ERROR("Wake up src 0x%lx \n", (long unsigned int)wake_up_src);
 		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP0_EN, 0x00);
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP0_SRC, wake_up_src);
 	}
 }
 
