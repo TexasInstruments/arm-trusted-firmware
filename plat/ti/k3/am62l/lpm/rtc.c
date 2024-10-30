@@ -65,9 +65,13 @@ void lpm_rtc_read_time(struct rtc_time *rtc)
  void rtc_lock(){
 	/* Lock RTC MMRs */
 	mmio_write_32(RTC_BASE + RTC_KICK0, 0);
-	while ((mmio_read_32(RTC_BASE+ RTC_SYNCPEND) & BIT(0)) != 0U) {
-	}
 	while ((mmio_read_32(RTC_BASE+ RTC_GENRAL_CTL) & BIT(23)) != 0U) {
+	}
+}
+
+void wait_for_write_pend()
+{	
+	while ((mmio_read_32(RTC_BASE+ RTC_SYNCPEND) & BIT(0)) != 0U) {
 	}
 }
 
@@ -93,6 +97,7 @@ void rtc_init(){
 	mmio_write_32(RTC_BASE + RTC_LFXOSC_CTRL, 0x0);
 	mmio_write_32(RTC_BASE + RTC_LFXOSC_TRIM, 0x00121203);
 	rtc_lock();
+	wait_for_write_pend();
 	
 	/* Enable 32K OSC dependency */
 	rtc_unlock();	
@@ -101,6 +106,7 @@ void rtc_init(){
 	ctrl |= 0x200000;
 	mmio_write_32(RTC_BASE + RTC_GENRAL_CTL, ctrl);
 	rtc_lock();
+	wait_for_write_pend();
 
 
 	/* Fill RTC scratchpad MMRs */
@@ -109,12 +115,13 @@ void rtc_init(){
 	iteration++;
 	mmio_write_32(RTC_BASE + RTC_SCRATCH1, 0x23456789);
 	mmio_write_32(RTC_BASE + RTC_SCRATCH2, 0x34567890);
-	mmio_write_32(RTC_BASE + RTC_SCRATCH3, 0x45678901);
+	// mmio_write_32(RTC_BASE + RTC_SCRATCH3, 0x45678901);
 	mmio_write_32(RTC_BASE + RTC_SCRATCH4, 0x56789012);
 	mmio_write_32(RTC_BASE + RTC_SCRATCH5, 0x67890123);
 	mmio_write_32(RTC_BASE + RTC_SCRATCH6, 0x78901234);
 	mmio_write_32(RTC_BASE + RTC_SCRATCH7, 0x89012345);
 	rtc_lock();
+	wait_for_write_pend();
 
 
 }
@@ -128,18 +135,21 @@ void rtc_suspend(void){
 	mmio_write_32(RTC_BASE + RTC_SCRATCH0, iteration);
 	iteration++;
 	rtc_lock();
+	wait_for_write_pend();
 
+	volatile uint32_t time  = mmio_read_32(RTC_BASE+ 0x4);
+	time  = mmio_read_32(RTC_BASE+ 0x8);
+	ctrl  = mmio_read_32(RTC_BASE+ 0xc);
+	time = time + 10;
 	rtc_unlock();
-	uint32_t time  = mmio_read_32(RTC_BASE+ 0x8);
-	time = time + 20;
 	mmio_write_32(RTC_BASE + 0x18, time);
 	mmio_write_32(RTC_BASE + 0x1C, 0x0);
 	rtc_lock();
+	
 
-
-	/* Configure wake up source polarity and enable pmic power off control */
+ 	/* Configure wake up source polarity and enable pmic power off control */
 	rtc_unlock();
-	ctrl = mmio_read_32(RTC_BASE+ RTC_GENRAL_CTL);
+		ctrl = mmio_read_32(RTC_BASE+ RTC_GENRAL_CTL);
 	ctrl |= 0x10040;
 	mmio_write_32(RTC_BASE + RTC_GENRAL_CTL, ctrl);
 	/* Enable all wake up interrupt */
@@ -150,7 +160,7 @@ void rtc_suspend(void){
 
 	/* Enable all wake up source and issue a OFF event */
 	rtc_unlock();
-	ctrl = mmio_read_32(RTC_BASE+ RTC_GENRAL_CTL);
+		ctrl = mmio_read_32(RTC_BASE+ RTC_GENRAL_CTL);
 	ctrl |= 0x20007;
 	mmio_write_32(RTC_BASE + RTC_GENRAL_CTL, ctrl);
 
@@ -161,10 +171,8 @@ void rtc_suspend(void){
 
 void rtc_resume(void){
 
+	uint32_t intr_src;
 	uint32_t ctrl;
-	/* Read RTC's interrupt register to check the wake up source */
-	ctrl = mmio_read_32(RTC_BASE+ RTC_IRQSTATUS_RAW_SYS);
-	ERROR("Wake up interrupt 0x%lx \n", (long unsigned int)ctrl);
 
 	/* Explicitly clear SW_OFF on rtc_cd side */
 	ctrl = mmio_read_32(RTC_BASE+ RTC_GENRAL_CTL);
@@ -189,18 +197,30 @@ void rtc_resume(void){
 	/* Disable wake up interrupts */
 	mmio_write_32(RTC_BASE + RTC_IRQENABLE_CLR_SYS, 0x1F);
 	rtc_lock();
+	wait_for_write_pend();
+
+	/* Read RTC's interrupt register to check the wake up source */
+	intr_src = mmio_read_32(RTC_BASE+ RTC_IRQSTATUS_RAW_SYS);
+	ERROR("Wake up interrupt 0x%lx \n", (long unsigned int)intr_src);
+
+	/* Clear wake up en */
+	ctrl = mmio_read_32(RTC_BASE+ RTC_GENRAL_CTL);
+	ctrl = ctrl & (~(0xF));	
+	rtc_unlock();
+	mmio_write_32(RTC_BASE + RTC_GENRAL_CTL, ctrl);
+	rtc_lock();
+	wait_for_write_pend();
+
+	/* */
+	while ((mmio_read_32(RTC_BASE+ RTC_SYNCPEND) & BIT(2)) == 0U) {
+	}
+	while ((mmio_read_32(RTC_BASE+ RTC_SYNCPEND) & BIT(2)) != 0U) {
+	}
 
 	/* Clear wake up interrupt */
 	rtc_unlock();
-	mmio_write_32(RTC_BASE + RTC_IRQSTATUS_SYS, ctrl);
+	mmio_write_32(RTC_BASE + RTC_IRQSTATUS_SYS, intr_src);
 	rtc_lock();
-	while ((mmio_read_32(RTC_BASE+ RTC_SYNCPEND) & BIT(0)) != 0U) {}
-
-	/* Explicitly clear SW_OFF on rtc_cd side */
-	rtc_unlock();
-	ctrl = mmio_read_32(RTC_BASE+ RTC_GENRAL_CTL);
-	ctrl = ctrl & (~(1 << 17));
-	mmio_write_32(RTC_BASE + RTC_GENRAL_CTL, ctrl);
-	rtc_lock();
+	wait_for_write_pend();
 
 }
