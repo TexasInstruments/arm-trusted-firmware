@@ -23,6 +23,7 @@
 #include <device_wrapper.h>
 #include <devices.h>
 #include <rtc.h>
+#include <k3_console.h>
 
 #define CORE_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL0])
 #define CLUSTER_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL1])
@@ -181,7 +182,7 @@ static void __unused set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t
 	pdstat_ptr = (uint32_t*) (uint64_t) ((MAIN_PSC_PDSTAT_BASE + (4*pd_id)));
 	pdstat = (uint32_t) *((uint32_t*)pdstat_ptr);
 
-	ERROR("%s: before: md_id=%d, mdstat=0x%x, pdstat=0x%x \n",__func__,md_id,mdstat,pdstat);
+	INFO("%s: before: md_id=%d, mdstat=0x%x, pdstat=0x%x \n",__func__,md_id,mdstat,pdstat);
 
 	if (((pdstat & 0x1) == pd_state) && ((mdstat & 0x1f) == md_state))
 		return;
@@ -218,7 +219,7 @@ static void __unused set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t
 	mdstat = (uint32_t) *((uint32_t*)mdstat_ptr);
 	pdstat = (uint32_t) *((uint32_t*)pdstat_ptr);
 
-	ERROR("%s: after: md_id=%d, mdstat=0x%x, pdstat=0x%x \n",__func__,md_id,mdstat,pdstat);
+	INFO("%s: after: md_id=%d, mdstat=0x%x, pdstat=0x%x \n",__func__,md_id,mdstat,pdstat);
 
 }
 
@@ -400,6 +401,8 @@ static void k3_pwr_domain_suspend(const psci_power_state_t *target_state)
 
 static void k3_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
 {
+	/* Initialize the console to provide early debug support */
+	k3_console_setup();
 	k3_config_wake_sources(false);
 	k3_gic_restore_context();
 	k3_gic_cpuif_enable();

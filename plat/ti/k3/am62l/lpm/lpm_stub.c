@@ -442,7 +442,7 @@ static void k3_lpm_jump_to_stub(void)
 	sctlr = (uint32_t) read_sctlr_el3();
 	sctlr &= (uint32_t) ~SCTLR_EL3_M_BIT;
 	write_sctlr_el3((uint64_t) sctlr);
-	NOTICE("k3_lpm_jump_to_stub x%lx \n",(long unsigned int)K3_SUSPEND_ENTRY);
+	INFO("k3_lpm_jump_to_stub x%lx \n",(long unsigned int)K3_SUSPEND_ENTRY);
 
 	k3_lpm_switch_stack(jump, stack, mode);
 }
@@ -466,7 +466,7 @@ int32_t k3_lpm_stub_copy_to_sram(void)
 	}
 
 	if (ret == 0) {
-		NOTICE("doing test final memcopy 0x%lx  0x%lx  0x%lx \n",(long unsigned int)WKUP_SRAM_START, (long unsigned int)WKUP_SRAM_COPY_START, (long unsigned int)WKUP_SRAM_END);
+		INFO("Stub copy 0x%lx  0x%lx  0x%lx \n",(long unsigned int)WKUP_SRAM_START, (long unsigned int)WKUP_SRAM_COPY_START, (long unsigned int)WKUP_SRAM_END);
 
 		memcpy((void *)sram_base_addr, a53_stub_start, a53_stub_len);
 		flush_dcache_range((uint64_t) sram_base_addr, a53_stub_len);
