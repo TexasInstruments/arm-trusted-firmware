@@ -236,6 +236,22 @@ __wkupsramfunc bool lpm_sleep_wait_for_tifs_wfi(void)
 }
 
 /**
+ * @brief Wait for secondary core to power off.
+ * 
+ */
+__wkupsramfunc bool lpm_wait_for_secondary_core_down(void)
+{
+	uint32_t reg;
+	do {
+		reg = mmio_read_32(MAIN_PSC_BASE +  0x8A4);
+		if ((reg & 0x1F) == 0) {
+			return true;
+		}
+	} while (1);
+	return false;
+}
+
+/**
  * @brief Entry function for a53 stub
  * 
  */
@@ -268,6 +284,11 @@ __wkupsramsuspendentry void k3_lpm_stub_entry(uint32_t mode)
 			wfi();
 
 	} else if (mode == 0) {
+
+		// Wait for a53_1 to turn off
+		lpm_wait_for_secondary_core_down();	
+		lpm_seq_trace(0x01);
+
 
 		save_main_pll();	
 		lpm_seq_trace(0x2);
@@ -443,7 +464,7 @@ static void k3_lpm_jump_to_stub(void)
 	sctlr &= (uint32_t) ~SCTLR_EL3_M_BIT;
 	write_sctlr_el3((uint64_t) sctlr);
 	INFO("k3_lpm_jump_to_stub x%lx \n",(long unsigned int)K3_SUSPEND_ENTRY);
-
+	
 	k3_lpm_switch_stack(jump, stack, mode);
 }
 
