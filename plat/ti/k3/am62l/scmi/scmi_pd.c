@@ -143,6 +143,7 @@ static struct power_domain scmi_power_domains[] = {
         AM62L_POWER_DOMAIN(AM62LX_DEV_OBSCLK0_MUX_SEL_DEV_VD, str(OBSCLK0_MUX_SEL_DEV_VD)),
         AM62L_POWER_DOMAIN(AM62LX_DEV_MAIN_USB0_ISO_VD, str(USB0_ISO_VD)),
         AM62L_POWER_DOMAIN(AM62LX_DEV_MAIN_USB1_ISO_VD, str(USB1_ISO_VD)),
+        AM62L_POWER_DOMAIN(AM62LX_DEV_CLK_32K_RC_SEL_DEV_VD , str(CLK_32K_RC)),
 };
 
 size_t plat_scmi_pd_count(unsigned int agent_id __unused)
