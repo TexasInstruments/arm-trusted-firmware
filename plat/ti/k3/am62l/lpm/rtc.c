@@ -50,6 +50,7 @@
 
 #define WKUP_CTRL_CLK_32K_RC_CLKSEL      						 (0x100)
 #define WKUP_CTRL_CLK_32K_RC_CLKSEL_LFOSC0_CLKOUT				 (0x3)
+#define WKUP_CTRL_CLK_32K_RC_CLKSEL_CLK32K_RC                                   (0x0)
 
 void lpm_rtc_read_time(struct rtc_time *rtc)
 {
@@ -122,6 +123,8 @@ void rtc_init(){
 	mmio_write_32(RTC_BASE + RTC_SCRATCH7, 0x89012345);
 	rtc_lock();
 	wait_for_write_pend();
+
+	mmio_write_32( WKUP_CTRL_MMR_SEC_2_BASE + WKUP_CTRL_CLK_32K_RC_CLKSEL, WKUP_CTRL_CLK_32K_RC_CLKSEL_CLK32K_RC);
 
 
 }
