@@ -243,13 +243,9 @@ static void k3_cpu_standby(plat_local_state_t cpu_state)
 	write_scr_el3(scr);
 }
 
-volatile int HOLDIIT=0x1234BEEF;
-volatile int cnt=3;
-
 static int k3_pwr_domain_on(u_register_t mpidr)
 {
 	int core, proc_id, ret;
-	HOLDIIT = 0xFEEFBEEF;
 
 	core = plat_core_pos_by_mpidr(mpidr);
 	if (core < 0) {
@@ -283,8 +279,7 @@ static int k3_pwr_domain_on(u_register_t mpidr)
 		return PSCI_E_INTERN_FAIL;
 	}
 
-	// scmi_handler_device_state_set_on(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
-	set_main_psc_state(PD_MPU_CLST_CORE_1, LPSC_MAIN_MPU_CLST_CORE_1, PSC_PD_ON, PSC_ENABLE);
+	scmi_handler_device_state_set_on(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
 
 	return PSCI_E_SUCCESS;
 }
