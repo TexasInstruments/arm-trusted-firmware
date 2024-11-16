@@ -443,7 +443,7 @@ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
 
 	k3_sec_entrypoint_glob = sec_entrypoint;
 	k3_sec_entrypoint = (long unsigned int)(void*)&jump_to_atf_func;
-	ERROR("k3_sec_entrypoint = 0x%lx\n", k3_sec_entrypoint);
+	INFO("k3_sec_entrypoint = 0x%lx\n", k3_sec_entrypoint);
 
 	*psci_ops = &k3_plat_psci_ops;
 
@@ -471,7 +471,7 @@ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
 		k3_plat_psci_ops.pwr_domain_suspend_finish = NULL;
 		k3_plat_psci_ops.get_sys_suspend_power_state = NULL;
 	}
-	ERROR("k3_sec_entrypoint = 0x%lx\n", k3_sec_entrypoint);
+	INFO("k3_sec_entrypoint = 0x%lx\n", k3_sec_entrypoint);
 
 	*psci_ops = &k3_plat_psci_ops;
 
