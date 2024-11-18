@@ -2636,7 +2636,7 @@ const struct clk_data soc_clock_data[178] = {
 		.data = &clk_data_postdiv4_16ff_wkup_0_hsdiv9.data_div.data,
 	},
 	[CLK_AM62LX_RTCSS_WKUP_0_OSC_32K_CLK] = {
-		.drv = &clk_drv_from_device,
+		.drv = &clk_drv_soc_lfosc0,
 		.flags = 0,
 		.data = &clk_data_rtcss_wkup_0_osc_32k_clk.data,
 		.freq_idx = AM62LX_FREQ_VALUE_RTCSS_WKUP_0_OSC_32K_CLK,
