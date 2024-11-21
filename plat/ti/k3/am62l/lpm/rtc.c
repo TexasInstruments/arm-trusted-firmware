@@ -51,6 +51,7 @@
 #define WKUP_CTRL_CLK_32K_RC_CLKSEL      						 (0x100)
 #define WKUP_CTRL_CLK_32K_RC_CLKSEL_LFOSC0_CLKOUT				 (0x3)
 #define WKUP_CTRL_CLK_32K_RC_CLKSEL_CLK32K_RC                                   (0x0)
+#define RELOAD_FROM_BBD         BIT(31)
 
 void lpm_rtc_read_time(struct rtc_time *rtc)
 {
@@ -226,4 +227,11 @@ void rtc_resume(void){
 	rtc_lock();
 	wait_for_write_pend();
 
+	ctrl = mmio_read_32(RTC_BASE+ RTC_SYNCPEND);
+	ctrl = ctrl | RELOAD_FROM_BBD;
+	rtc_unlock();
+	mmio_write_32(RTC_BASE + RTC_SYNCPEND, ctrl);
+	wait_for_write_pend();
+	rtc_lock();
+	
 }
