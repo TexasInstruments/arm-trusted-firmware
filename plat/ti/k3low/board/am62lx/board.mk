@@ -15,3 +15,11 @@ $(eval $(call add_define,PRELOADED_BL33_BASE))
 
 K3_HW_CONFIG_BASE ?= 0x88000000
 $(eval $(call add_define,K3_HW_CONFIG_BASE))
+
+include plat/ti/common/scmi/ti_scmi.mk
+
+BL31_SOURCES		+=	\
+				plat/ti/common/k3_svc.c		\
+				drivers/scmi-msg/base.c		\
+				drivers/scmi-msg/entry.c	\
+				drivers/scmi-msg/smt.c		\
