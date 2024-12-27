@@ -107,6 +107,15 @@ const char *plat_scmi_clock_get_name(unsigned int agent_id,
 				     unsigned int scmi_id);
 
 /*
+ * Get clock enable delay in microseconds
+ * @agent_id: SCMI agent ID
+ * @scmi_id: SCMI clock ID
+ * Return delay or SCMI compliant error code
+ */
+uint32_t plat_scmi_clock_get_enable_delay(unsigned int agent_id,
+					  unsigned int scmi_id);
+
+/*
  * Get clock possible rate as an array of frequencies in Hertz.
  *
  * @agent_id: SCMI agent ID
@@ -131,6 +140,39 @@ int32_t plat_scmi_clock_rates_array(unsigned int agent_id, unsigned int scmi_id,
 int32_t plat_scmi_clock_rates_by_step(unsigned int agent_id,
 				      unsigned int scmi_id,
 				      unsigned long *min_max_step);
+/*
+ * Get clock possible parents as an array of parent ids
+ * @agent_id: SCMI agent ID
+ * @scmi_id: SCMI clock ID
+ * @plat_possible_parents: If NULL, function returns,
+ * else output possible parents array
+ * @nb_elts: Array size of @plat_possible_parents
+ * @skip_parents: Number of parents to skip for 2nd iteration onwards
+ * Return an SCMI compliant error code
+ */
+int32_t plat_scmi_clock_get_possible_parents(unsigned int agent_id,
+					     unsigned int scmi_id,
+					     unsigned int *plat_possible_parents,
+					     size_t *nb_elts,
+					     uint32_t skip_parents);
+/*
+ * Get clock rate in Hertz
+ * @agent_id: SCMI agent ID
+ * @scmi_id: SCMI clock ID
+ * Return parent id or SCMI compliant error code
+ */
+int32_t plat_scmi_clock_get_parent(unsigned int agent_id,
+				   unsigned int scmi_id);
+/*
+ * Set clock rate in Hertz
+ * @agent_id: SCMI agent ID
+ * @scmi_id: SCMI clock ID
+ * @parent_id: Target parent id
+ * Return a compliant SCMI error code
+ */
+int32_t plat_scmi_clock_set_parent(unsigned int agent_id,
+				   unsigned int scmi_id,
+				   unsigned int parent_id);
 
 /*
  * Get clock rate in Hertz
@@ -168,6 +210,24 @@ int32_t plat_scmi_clock_get_state(unsigned int agent_id, unsigned int scmi_id);
  */
 int32_t plat_scmi_clock_set_state(unsigned int agent_id, unsigned int scmi_id,
 				  bool enable_not_disable);
+
+/*
+ * Get clock extended config
+ * @agent_id: SCMI agent ID
+ * @scmi_id: SCMI clock ID
+ * Return value corresponding to extended configuration type or a negative SCMI error code
+ */
+int32_t plat_scmi_clock_get_extended_config(unsigned int agent_id, unsigned int scmi_id);
+
+/*
+ * Set clock extended config
+ * @agent_id: SCMI agent ID
+ * @scmi_id: SCMI clock ID
+ * @extended_config_val: Value corresponding to extended configuration type
+ * Return a compliant SCMI error code
+ */
+int32_t plat_scmi_clock_set_extended_config(unsigned int agent_id, unsigned int scmi_id,
+					    unsigned int extended_config_val);
 
 /* Handlers for SCMI Reset Domain protocol services */
 
