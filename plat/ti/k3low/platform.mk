@@ -13,6 +13,8 @@ include ${PLAT_PATH}/board/${TARGET_BOARD}/board.mk
 PLAT_INCLUDES +=	\
 			-I${PLAT_PATH}/board/${TARGET_BOARD}/include	\
 			-I${PLAT_PATH}					\
+			-I${PLAT_PATH}/board/${TARGET_BOARD}/pm		\
+			-I${PLAT_PATH}/board/${TARGET_BOARD}/scmi	\
 			-Idrivers/scmi-msg				\
 			-Iplat/ti/common/include			\
 			-Iplat/ti/common/scmi				\
