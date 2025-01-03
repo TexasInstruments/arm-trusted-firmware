@@ -14,6 +14,12 @@
 #include <lib/utils.h>
 #include <lib/utils_def.h>
 
+#include <clk.h>
+#include <device.h>
+#include <devices.h>
+#include <clocks.h>
+#include <device_clk.h>
+#include <device_pm.h>
 #include <plat_scmi_def.h>
 #include <platform_def.h>
 
