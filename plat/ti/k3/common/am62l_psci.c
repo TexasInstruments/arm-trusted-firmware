@@ -66,13 +66,17 @@ static int k3_pwr_domain_on(u_register_t mpidr)
 		return PSCI_E_INTERN_FAIL;
 	}
 
-	/* TODO: Add the actual pm operation call to turn on the core */
+	scmi_handler_device_state_set_on(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
 
 	return PSCI_E_SUCCESS;
 }
 
 static void __dead2 k3_pwr_domain_off_wfi(const psci_power_state_t *target_state)
 {
+	int core;
+
+	core = plat_my_core_pos();
+
 	/* At very least the local core should be powering down */
 	assert(CORE_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE);
 
@@ -81,7 +85,8 @@ static void __dead2 k3_pwr_domain_off_wfi(const psci_power_state_t *target_state
 
 	/* If our cluster is not going down we stop here */
 	if (CLUSTER_PWR_STATE(target_state) != PLAT_MAX_OFF_STATE) {
-		/* TODO: Add the actual pm operation call to turn off the core */
+		VERBOSE("A53 CORE: %d OFF\n", core);
+		scmi_handler_device_state_set_off(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
 	}
 
 	while (true)
