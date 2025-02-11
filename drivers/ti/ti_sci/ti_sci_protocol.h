@@ -53,6 +53,10 @@
 #define TISCI_MSG_GET_PROC_BOOT_STATUS	0xc400
 #define TISCI_MSG_WAIT_PROC_BOOT_STATUS	0xc401
 
+/* TFA encrypt/decrypt messages */
+#define TISCI_MSG_LPM_ENCRYPT		0x030F
+#define TISCI_MSG_LPM_DECRYPT		0x0310
+
 /**
  * struct ti_sci_secure_msg_hdr - Header that prefixes all TISCI messages sent
  *				  via secure transport.
@@ -809,5 +813,38 @@ struct ti_sci_msg_resp_lpm_get_next_sys_mode {
 	struct ti_sci_msg_hdr hdr;
 	uint8_t mode;
 } __packed;
+
+/**
+ * struct ti_sci_msg_req_encrypt_tfa - Request for TISCI_MSG_LPM_ENCRYPT.
+ *
+ * @hdr			Generic Header
+ * @unencrypted_address:Address where the TFA lies unencrypted
+ * @encrypted_address:	Address where the encrypted TFA + header will be stored
+ * @unencrypted_len:	Size of the TFA unencrypted
+ * @max_encrypted_len:	Size of DDR region reserved for encrypted TFA
+ *
+ * This message is to be sent when the system is going in suspend, just before
+ * TI_SCI_MSG_ENTER_SLEEP.
+ * The TIFS will then encrypt the TFA and store it in RAM, along with a private
+ * header.
+ * Upon resume, the SPL will ask TIFS to decrypt it back.
+ */
+struct ti_sci_msg_req_encrypt_tfa {
+	struct ti_sci_msg_hdr hdr;
+	uint64_t unencrypted_address;
+	uint64_t encrypted_address;
+	uint32_t unencrypted_len;
+	uint32_t max_encrypted_len;
+} __packed;
+
+/**
+* \brief Response for TISCI_MSG_LPM_ENCRYPT.
+*
+* \param hdr TISCI header to provide ACK/NAK flags to the host.
+*
+*/
+struct ti_sci_msg_resp_encrypt_tfa {
+	struct ti_sci_msg_hdr hdr;
+} __attribute__((__packed__));
 
 #endif /* TI_SCI_PROTOCOL_H */

@@ -258,6 +258,15 @@ int ti_sci_proc_wait_boot_status_no_wait(uint8_t proc_id,
  *
  * Return: 0 if all goes well, else appropriate error message
  *
+ * - ti_sci_encrypt_tfa - Ask TIFS to encrypt TFA at a specific address
+ *
+ *		@unencrypted_address: Address where the TFA lies unencrypted
+ *		@unencrypted_len: Size of the TFA unencrypted
+ *		@encrypted_address: Address where the encrypted TFA + header
+ *				    will be stored
+ *		@max_encrypted_len: Size of DDR region reserved for encrypted
+ *				    TFA and header
+ *
  * NOTE: for all these functions, the following are generic in nature:
  * Returns 0 for successful request, else returns corresponding error message.
  */
@@ -265,5 +274,10 @@ int ti_sci_enter_sleep(uint8_t proc_id,
 		       uint8_t mode,
 		       uint64_t core_resume_addr);
 int ti_sci_lpm_get_next_sys_mode(uint8_t *next_mode);
+
+int ti_sci_encrypt_tfa(uint64_t unencrypted_address,
+		       uint32_t unencrypted_len,
+		       uint64_t encrypted_address,
+		       uint32_t max_encrypted_len);
 
 #endif /* TI_SCI_H */

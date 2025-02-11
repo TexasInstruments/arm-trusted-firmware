@@ -1784,3 +1784,46 @@ int ti_sci_lpm_get_next_sys_mode(uint8_t *next_mode)
 
 	return 0;
 }
+
+/*
+ * ti_sci_encrypt_tfa - Ask TIFS to encrypt TFA at a specific address
+ *
+ * @unencrypted_address: Address where the TFA lies unencrypted
+ * @unencrypted_len: Size of the TFA unencrypted
+ * @encrypted_address: Address where the encrypted TFA + header will be stored
+ * @max_encrypted_len: Size of DDR region reserved for encrypted TFA and header
+ *
+ * Return: 0 if all goes well, else appropriate error message
+ */
+int ti_sci_encrypt_tfa(uint64_t unencrypted_address,
+		       uint32_t unencrypted_len,
+		       uint64_t encrypted_address,
+		       uint32_t max_encrypted_len)
+{
+	struct ti_sci_msg_req_encrypt_tfa req = { 0 };
+	struct ti_sci_msg_resp_encrypt_tfa resp = { 0 };
+	struct ti_sci_xfer xfer;
+	int ret;
+
+	ret = ti_sci_setup_one_xfer(TISCI_MSG_LPM_ENCRYPT, 0,
+				    &req, sizeof(req),
+				    &resp, sizeof(resp),
+				    &xfer);
+	if (ret != 0U) {
+		ERROR("Message alloc failed (%d)\n", ret);
+		return ret;
+	}
+
+	req.unencrypted_address = unencrypted_address;
+	req.unencrypted_len = unencrypted_len;
+	req.encrypted_address = encrypted_address;
+	req.max_encrypted_len = max_encrypted_len;
+
+	ret = ti_sci_do_xfer(&xfer);
+	if (ret != 0U) {
+		ERROR("Transfer send failed (%d)\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
