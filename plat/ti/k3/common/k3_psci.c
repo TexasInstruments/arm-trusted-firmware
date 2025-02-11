@@ -259,6 +259,13 @@ static void k3_pwr_domain_suspend_to_mode(const psci_power_state_t *target_state
 	k3_gic_cpuif_disable();
 	k3_gic_save_context();
 
+#if K3_LPM_DDR_SAVE_ADDRESS
+	/* Encrypt BL31 with its context.*/
+	ti_sci_encrypt_tfa((uint64_t)__TEXT_START__,
+			   BL31_SIZE,
+			   K3_LPM_DDR_SAVE_ADDRESS,
+			   K3_LPM_DDR_MAX_SAVE_SZ);
+#endif
 	k3_pwr_domain_off(target_state);
 
 	ti_sci_enter_sleep(proc_id, mode, k3_sec_entrypoint);
@@ -266,6 +273,9 @@ static void k3_pwr_domain_suspend_to_mode(const psci_power_state_t *target_state
 
 static void k3_pwr_domain_suspend_dm_managed(const psci_power_state_t *target_state)
 {
+#ifdef K3_LPM_DDR_SAVE_ADDRESS
+	uint8_t mode = MSG_VALUE_SLEEP_MODE_SOC_OFF;
+#else
 	uint8_t mode = MSG_VALUE_SLEEP_MODE_DEEP_SLEEP;
 	int ret;
 
@@ -274,6 +284,7 @@ static void k3_pwr_domain_suspend_dm_managed(const psci_power_state_t *target_st
 		ERROR("Failed to fetch next system mode\n");
 	}
 
+#endif
 	k3_pwr_domain_suspend_to_mode(target_state, mode);
 }
 
@@ -324,8 +335,9 @@ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
 		ERROR("Unable to query firmware capabilities (%d)\n", ret);
 	}
 
-	/* If firmware does not support any known suspend mode */
-	if (!(fw_caps & (MSG_FLAG_CAPS_LPM_DEEP_SLEEP |
+	if (fw_caps & MSG_FLAG_CAPS_LPM_DM_MANAGED) {
+		k3_plat_psci_ops.pwr_domain_suspend = k3_pwr_domain_suspend_dm_managed;
+	} else if (!(fw_caps & (MSG_FLAG_CAPS_LPM_DEEP_SLEEP |
 			 MSG_FLAG_CAPS_LPM_MCU_ONLY |
 			 MSG_FLAG_CAPS_LPM_STANDBY |
 			 MSG_FLAG_CAPS_LPM_PARTIAL_IO))) {
@@ -333,8 +345,6 @@ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
 		k3_plat_psci_ops.pwr_domain_suspend = NULL;
 		k3_plat_psci_ops.pwr_domain_suspend_finish = NULL;
 		k3_plat_psci_ops.get_sys_suspend_power_state = NULL;
-	} else if (fw_caps & MSG_FLAG_CAPS_LPM_DM_MANAGED) {
-		k3_plat_psci_ops.pwr_domain_suspend = k3_pwr_domain_suspend_dm_managed;
 	}
 
 	*psci_ops = &k3_plat_psci_ops;

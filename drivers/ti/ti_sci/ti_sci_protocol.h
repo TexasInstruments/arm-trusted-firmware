@@ -784,6 +784,7 @@ struct ti_sci_msg_req_wait_proc_boot_status {
 struct ti_sci_msg_req_enter_sleep {
 	struct ti_sci_msg_hdr hdr;
 #define MSG_VALUE_SLEEP_MODE_DEEP_SLEEP 0x0
+#define MSG_VALUE_SLEEP_MODE_SOC_OFF 0x05
 	uint8_t mode;
 	uint8_t processor_id;
 	uint32_t core_resume_lo;
