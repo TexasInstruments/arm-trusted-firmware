@@ -30,6 +30,7 @@
 #define TI_SCI_MSG_SET_DEVICE_RESETS	0x0202
 
 /* Low Power Mode Requests */
+#define TI_SCI_MSG_PREPARE_SLEEP    0x0300
 #define TI_SCI_MSG_ENTER_SLEEP		0x0301
 #define TI_SCI_MSG_LPM_GET_NEXT_SYS_MODE 0x030d
 
@@ -763,6 +764,25 @@ struct ti_sci_msg_req_wait_proc_boot_status {
 } __packed;
 
 /**
+ * struct ti_sci_msg_req_prepare_sleep - Request for TISCI_MSG_PREPARE_SLEEP.
+ *
+ * @hdr		    Generic Header
+ * @mode	    Low power mode to enter.
+ * @ctx_lo  Low 32-bits of physical pointer to address for TIFS to
+ *          save its context
+ * @ctx_hi  High 32-bits of physical pointer to addressfor TIFS to
+ *          save its context
+ * @debug_flags debug flags that can be passed to TIFS
+ */
+struct ti_sci_msg_req_prepare_sleep {
+	struct ti_sci_msg_hdr hdr;
+	uint8_t mode;
+	uint32_t ctx_lo;
+	uint32_t ctx_hi;
+	uint32_t debug_flags;
+} __packed;
+
+/**
  * struct ti_sci_msg_req_enter_sleep - Request for TI_SCI_MSG_ENTER_SLEEP.
  *
  * @hdr		    Generic Header
@@ -807,6 +827,25 @@ struct ti_sci_msg_req_lpm_get_next_sys_mode {
 struct ti_sci_msg_resp_lpm_get_next_sys_mode {
 	struct ti_sci_msg_hdr hdr;
 	uint8_t mode;
+} __packed;
+
+/**
+ * \brief Request for TISCI_MSG_MIN_CONTEXT_RESTORE.
+ *
+ * \param hdr TISCI header to provide ACK/NAK flags to the host.
+ * \param ctx_lo Low 32-bits of physical pointer to address to use for context restore.
+ * \param ctx_hi High 32-bits of physical pointer to address to use for context restore.
+ *
+ * This message is sent from bootloader to TIFS to indicate that DDR is active and
+ * TIFS can restore the minimal context from the address provided in the ctx_lo and
+ * ctx_hi parameters. This response assumes DDR has been fully restored by bootloader
+ * before it is sent.
+ *
+ */
+struct tisci_msg_min_context_restore_req {
+	struct ti_sci_msg_hdr	hdr;
+	uint32_t			ctx_lo;
+	uint32_t			ctx_hi;
 } __packed;
 
 #endif /* TI_SCI_PROTOCOL_H */

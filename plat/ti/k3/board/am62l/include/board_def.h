@@ -26,4 +26,16 @@
 #define TIFS_MESSAGE_RESP_START_REGION		(0x70814000)
 #define TIFS_MESSAGE_RESP_END_REGION		(0x7081513F)
 
+#define DEVICE_WKUP_SRAM_BASE			UL(0x707f0000)
+#define DEVICE_WKUP_SRAM_STACK_SIZE		UL(0x1000)
+#define DEVICE_WKUP_SRAM_SIZE			UL(0x00010000)
+#define DEVICE_WKUP_SRAM_CODE_SIZE		(DEVICE_WKUP_SRAM_SIZE - DEVICE_WKUP_SRAM_STACK_SIZE)
+#define DEVICE_WKUP_SRAM_STACK_BASE		(DEVICE_WKUP_SRAM_BASE + DEVICE_WKUP_SRAM_CODE_SIZE)
+#define DEVICE_WKUP_SRAM_STACK_BASE_L	(DEVICE_WKUP_SRAM_STACK_BASE & 0xFFFFU)
+#define DEVICE_WKUP_SRAM_STACK_BASE_H	(DEVICE_WKUP_SRAM_STACK_BASE >> 16)
+#define __wkupsramfunc					__section(".wkupsram.text")
+#define __wkupsramdata					__section(".wkupsram.data")
+#define __wkupsramresumeentry			__section(".wkupsram.resume_entry")
+#define __wkupsramsuspendentry			__section(".wkupsram.suspend_entry")
+
 #endif /* BOARD_DEF_H */

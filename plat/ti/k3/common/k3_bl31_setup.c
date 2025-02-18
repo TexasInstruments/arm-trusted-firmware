@@ -19,6 +19,7 @@
 #include <k3_gicv3.h>
 #include <ti_sci.h>
 #include <ti_sci_transport.h>
+#include <board_def.h>
 
 /*
  * Placeholder variables for maintaining information about the next image(s)
@@ -88,6 +89,9 @@ void bl31_plat_arch_setup(void)
 {
 	const mmap_region_t bl_regions[] = {
 		MAP_REGION_FLAT(BL31_START,           BL31_SIZE,			          MT_MEMORY  | MT_RW | MT_SECURE),
+#ifdef TI_AM62L_LPM
+		MAP_REGION_FLAT(DEVICE_WKUP_SRAM_BASE, DEVICE_WKUP_SRAM_SIZE,                     MT_MEMORY  | MT_RW | MT_SECURE),
+#endif
 		MAP_REGION_FLAT(BL_CODE_BASE,         BL_CODE_END         - BL_CODE_BASE,         MT_CODE    | MT_RO | MT_SECURE),
 		MAP_REGION_FLAT(BL_RO_DATA_BASE,      BL_RO_DATA_END      - BL_RO_DATA_BASE,      MT_RO_DATA | MT_RO | MT_SECURE),
 #if USE_COHERENT_MEM
