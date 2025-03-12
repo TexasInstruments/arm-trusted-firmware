@@ -23,6 +23,7 @@
 #define TI_SCI_MSG_GOODBYE		0x0004
 #define TI_SCI_MSG_SYS_RESET		0x0005
 #define TI_SCI_MSG_QUERY_FW_CAPS	0x0022
+#define TI_SCI_MSG_TIFS_BOOT_NOTIFICATION	U(0x000A)
 
 /* Device requests */
 #define TI_SCI_MSG_SET_DEVICE_STATE	0x0200
@@ -55,6 +56,17 @@
 #define TISCI_MSG_WAIT_PROC_BOOT_STATUS	0xc401
 
 /**
+ * struct ti_sci_secure_msg_hdr - Header that prefixes all TISCI messages sent
+ *				  via secure transport.
+ * @checksum:	crc16 checksum for the entire message
+ * @reserved:	Reserved for future use.
+ */
+struct ti_sci_secure_msg_hdr {
+	uint16_t checksum;
+	uint16_t reserved;
+} __packed;
+
+/**
  * struct ti_sci_msg_hdr - Generic Message Header for All messages and responses
  * @type:	Type of messages: One of TI_SCI_MSG* values
  * @host:	Host of the message
@@ -62,6 +74,7 @@
  * @flags:	Flag for the message
  */
 struct ti_sci_msg_hdr {
+	struct ti_sci_secure_msg_hdr sec_hdr;
 	uint16_t type;
 	uint8_t host;
 	uint8_t seq;
@@ -83,17 +96,6 @@ struct ti_sci_msg_hdr {
  */
 struct ti_sci_msg_req_version {
 	struct ti_sci_msg_hdr hdr;
-} __packed;
-
-/**
- * struct ti_sci_secure_msg_hdr - Header that prefixes all TISCI messages sent
- *				  via secure transport.
- * @checksum:	crc16 checksum for the entire message
- * @reserved:	Reserved for future use.
- */
-struct ti_sci_secure_msg_hdr {
-	uint16_t checksum;
-	uint16_t reserved;
 } __packed;
 
 /**
@@ -846,6 +848,15 @@ struct tisci_msg_min_context_restore_req {
 	struct ti_sci_msg_hdr	hdr;
 	uint32_t			ctx_lo;
 	uint32_t			ctx_hi;
+} __packed;
+
+/**
+ * struct ti_sci_boot_notification_msg - Message format for boot
+ *					       notification
+ * @hdr:		Generic message hdr
+ */
+struct ti_sci_boot_notification_msg {
+	struct ti_sci_msg_hdr hdr;
 } __packed;
 
 #endif /* TI_SCI_PROTOCOL_H */

@@ -9,23 +9,6 @@
 #include <stdint.h>
 #include <ti_sci_protocol.h>
 
-#define TI_SCI_MSG_TIFS_BOOT_NOTIFICATION	0x000A
-
-extern void ti_sci_boot_notification(void);
-
-/**
- * struct ti_sci_boot_notification_msg - Message format for boot
- *					       notification
- * @checksum:		Checksum for the entire message
- * @reserved:		Reserved for future use.
- * @hdr:		Generic message hdr
- */
-struct ti_sci_boot_notification_msg {
-	uint16_t checksum;
-	uint16_t reserved;
-	struct ti_sci_msg_hdr hdr;
-} __packed;
-
 /**
  * enum k3_sec_proxy_chan_id - Secure Proxy thread IDs
  *

@@ -265,6 +265,7 @@ int ti_sci_enter_sleep(uint8_t proc_id,
 		       uint8_t mode,
 		       uint64_t core_resume_addr);
 int ti_sci_lpm_get_next_sys_mode(uint8_t *next_mode);
+int ti_sci_boot_notification(void);
 
 /**
  * - ti_sci_prepare_sleep - Command to initiate system transition into suspend.

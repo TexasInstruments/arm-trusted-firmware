@@ -148,17 +148,6 @@ static int ti_sci_do_xfer(struct ti_sci_xfer *xfer)
 	struct ti_sci_msg *tx_msg = &xfer->tx_message;
 	struct ti_sci_msg *rx_msg = &xfer->rx_message;
 	int ret;
-	uint8_t secure_buf[TI_SCI_MAX_MESSAGE_SIZE];
-	struct ti_sci_secure_msg_hdr *secure_hdr = (struct ti_sci_secure_msg_hdr *)secure_buf;
-
-	/* ToDo: get checksum of the entire message */
-	secure_hdr->checksum = 0;
-	secure_hdr->reserved = 0;
-
-	memcpy(&secure_buf[sizeof(struct ti_sci_secure_msg_hdr)], xfer->tx_message.buf,
-		xfer->tx_message.len);
-	xfer->tx_message.buf = secure_buf;
-	xfer->tx_message.len += sizeof(struct ti_sci_secure_msg_hdr);
 
 	bakery_lock_get(&ti_sci_xfer_lock);
 
@@ -1828,5 +1817,40 @@ int ti_sci_prepare_sleep(uint8_t mode, uint64_t context_save_addr,
 		return ret;
 	}
 
+	return 0;
+}
+
+/**
+ * ti_sci_boot_notification() - Boot notification from firmware
+ *
+ * This function is used to receive boot notification from firmware
+ * It indicates that the firmware is ready for communication
+ *
+ * Return: 0 if all goes well, else appropriate error message
+ */
+int ti_sci_boot_notification(void)
+{
+	int ret = 0;
+	struct ti_sci_boot_notification_msg boot_notification;
+	struct ti_sci_msg rx_message;
+
+	rx_message.buf = (void*)&boot_notification;
+	rx_message.len = sizeof(struct ti_sci_boot_notification_msg);
+
+	ret = ti_sci_transport_recv(SP_RESPONSE, &rx_message);
+	if (ret != 0U) {
+		ERROR("Failed to get boot notification (%d)\n", ret);
+		return ret;
+	}
+
+	/* Check for proper response ID */
+	if (boot_notification.hdr.type != TI_SCI_MSG_TIFS_BOOT_NOTIFICATION) {
+		ERROR("%s: Command expected 0x%x, but received 0x%x\n",
+		      __func__, TI_SCI_MSG_TIFS_BOOT_NOTIFICATION,
+		      boot_notification.hdr.type);
+		return -EINVAL;
+	}
+
+	ERROR("%s: boot notification received from TIFS\n", __func__);
 	return 0;
 }
