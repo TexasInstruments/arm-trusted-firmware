@@ -165,6 +165,22 @@ set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint32_t m
 uintptr_t am62l_sec_entrypoint;
 uintptr_t am62l_sec_entrypoint_glob;
 
+static void am62l_cpu_standby(plat_local_state_t cpu_state)
+{
+	u_register_t scr;
+
+	scr = read_scr_el3();
+	/* Enable the Non secure interrupt to wake the CPU */
+	write_scr_el3(scr | SCR_IRQ_BIT | SCR_FIQ_BIT);
+	isb();
+	/* dsb is good practice before using wfi to enter low power states */
+	dsb();
+	/* Enter standby state */
+	wfi();
+	/* Restore SCR */
+	write_scr_el3(scr);
+}
+
 static int am62l_pwr_domain_on(u_register_t mpidr)
 {
 	int core, proc_id, ret;
@@ -258,7 +274,22 @@ static void __dead2 am62l_system_reset(void)
 static int k3_validate_power_state(unsigned int power_state,
 				   psci_power_state_t *req_state)
 {
-	/* TODO: perform the proper validation */
+	unsigned int pwr_lvl = psci_get_pstate_pwrlvl(power_state);
+	unsigned int pstate = psci_get_pstate_type(power_state);
+
+	if (pwr_lvl > PLAT_MAX_PWR_LVL)
+		return PSCI_E_INVALID_PARAMS;
+
+	if (pstate == PSTATE_TYPE_STANDBY) {
+		/*
+		 * It's possible to enter standby only on power level 0
+		 * Ignore any other power level.
+		 */
+		if (pwr_lvl != MPIDR_AFFLVL0)
+			return PSCI_E_INVALID_PARAMS;
+
+		CORE_PWR_STATE(req_state) = PLAT_MAX_RET_STATE;
+	}
 
 	return PSCI_E_SUCCESS;
 }
@@ -322,6 +353,7 @@ static void am62l_get_sys_suspend_power_state(psci_power_state_t *req_state)
 #endif
 
 static plat_psci_ops_t am62l_plat_psci_ops = {
+	.cpu_standby = am62l_cpu_standby,
 	.pwr_domain_on = am62l_pwr_domain_on,
 	.pwr_domain_off = am62l_pwr_domain_off,
 	.pwr_domain_pwr_down_wfi = am62l_pwr_domain_off_wfi,
