@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
-
+PSCI_OS_INIT_MODE                   :=  1
 # We dont have system level coherency capability
 USE_COHERENT_MEM	:=	0
 K3_TI_SCI_MAILBOX	:=	1
