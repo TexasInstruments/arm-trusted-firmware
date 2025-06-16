@@ -167,11 +167,11 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
 {
 	/* Initialize the console to provide early debug support */
+	ti_init_scmi_server();
 	k3_console_setup();
 	k3_config_wake_sources(false);
 	k3_gic_restore_context();
 	k3_gic_cpuif_enable();
-	ti_init_scmi_server();
 	k3_lpm_stub_copy_to_sram();
 	rtc_resume();
 }
