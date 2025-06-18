@@ -16,7 +16,7 @@
 /** The bitmask of currently enabled devgroups. */
 static uint32_t pm_devgroups_enabled;
 
-/** True if devices have completed deferred init. */
+
 static bool devices_rw;
 
 void pm_devgroup_set_enabled(devgrp_t groups)
@@ -29,19 +29,19 @@ bool pm_devgroup_is_enabled(devgrp_t groups)
 	return true;
 }
 
-/**
- * \brief Initialize a device
- *
- * This performs the necessary device initialization step, including syncing
- * the flags on the device with the real hardware state and calling the clock
- * init function for each clock.
- *
- * \param device
- * The device to init.
- *
- * \return
- * 0 on success, <0 on failure.
- */
+
+
+
+
+
+
+
+
+
+
+
+
+
 static int32_t device_init(struct device *dev)
 {
 	const struct dev_data *data = get_dev_data(dev);
@@ -58,7 +58,7 @@ static int32_t device_init(struct device *dev)
 	}
 
 	if (!devices_rw) {
-		/* Defer remainder of init */
+
 		data = NULL;
 	}
 
@@ -66,13 +66,13 @@ static int32_t device_init(struct device *dev)
 		ret = soc_device_init(dev);
 	}
 
-	/* Calling these multiple times for a deferred device has no effect */
+
 	if ((data != NULL) && (ret == SUCCESS)) {
 		for (i = 0U; i < data->n_clocks; i++) {
 			device_clk_init(dev, i);
 		}
 
-		/* Calling these multiple times for a deferred device has no effect */
+
 		if (device_get_state(dev) != 0U) {
 			device_set_state(dev, DEV_POWER_ON_ENABLED_HOST_IDX, true);
 			device_set_retention(dev, true);
@@ -121,7 +121,7 @@ int32_t devices_init(void)
 				continue;
 			}
 
-			/* Translate compressed internal representation to bitfield */
+
 			if (soc_device_data_arr[idx]->pm_devgrp == PM_DEVGRP_DMSC) {
 				devgrp = DEVGRP_DMSC;
 			} else {
@@ -155,30 +155,52 @@ int32_t devices_init(void)
 	} while (!done && progress);
 
 	if (devices_rw) {
-		/* Only necessary after deferred initialization */
+
 		clk_drop_pwr_up_en();
 	}
 
-	if (progress) {
-		if (devices_rw) {
-			/* Only necessary after deferred initialization */
-			/* soc_device_init_complete(); */
+
+
+
+
+	for (idx = 0U; idx < soc_device_count; idx++) {
+        struct device *dev = &soc_devices[idx];
+        if (soc_device_data_arr[idx] == NULL ||
+            !pm_devgroup_is_enabled(soc_device_data_arr[idx]->pm_devgrp == PM_DEVGRP_DMSC ?
+                                  DEVGRP_DMSC :
+                                  BIT(soc_device_data_arr[idx]->pm_devgrp - 1U))) {
+            continue;
 		}
 
-		if (errors == false) {
-			pm_trace(TRACE_PM_ACTION_DEV_INIT, 0x0U);
-		}
 
-		ret = SUCCESS;
-	} else if (contents) {
-		/* We processed at least one device but didn't make progress */
-		ret = -EDEFER;
-	} else {
-		/* We didn't process any devices */
-		ret = SUCCESS;
+
+
+
+
+
+
+
+
+
+
+        if (dev->initialized == 0U) {
+            return -EDEFER;
 	}
+}
 
-	return ret;
+
+    if (progress) {
+        if (errors == false) {
+            pm_trace(TRACE_PM_ACTION_DEV_INIT, 0x0U);
+        }
+        ret = SUCCESS;
+    } else if (contents) {
+        ret = -EDEFER;
+    } else {
+        ret = SUCCESS;
+    }
+
+    return ret;
 }
 
 int32_t devices_init_rw(void)
@@ -188,10 +210,10 @@ int32_t devices_init_rw(void)
 	if (!devices_rw) {
 		uint32_t i;
 
-		/*
-		 * Force reinitialization of all devices to get defered
-		 * initialization.
-		 */
+
+
+
+
 		for (i = 0U; i < soc_device_count; i++) {
 			struct device *dev = &soc_devices[i];
 
@@ -200,14 +222,14 @@ int32_t devices_init_rw(void)
 
 		devices_rw = true;
 
-		/* Perform defered initialization */
+
 		ret = devices_init();
 	}
 
 	return ret;
 }
 
-/* extern void device_disable(struct device *dev, bool domain_reset); */
+
 int32_t devices_deinit(uint8_t pm_devgrp)
 {
 	int32_t ret = SUCCESS;
@@ -246,7 +268,7 @@ int32_t devices_deinit(uint8_t pm_devgrp)
 	return ret;
 }
 
-/* extern void device_clear_flags(struct device *dev); */
+
 int32_t devices_deinit_flags(void)
 {
 	int32_t ret = SUCCESS;
@@ -259,7 +281,7 @@ int32_t devices_deinit_flags(void)
 		}
 		dev = &soc_devices[i];
 		dev->exclusive = 0;
-		/* Deinitialize flags only for devices that have been set by a host */
+
 		if ((dev->flags != 0U) && (dev->initialized != 0U)) {
 			dev->flags = 0U;
 			device_clear_flags(dev);
