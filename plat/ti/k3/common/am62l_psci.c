@@ -70,7 +70,11 @@ static int am62l_pwr_domain_on(u_register_t mpidr)
 		return PSCI_E_INTERN_FAIL;
 	}
 
-	scmi_handler_device_state_set_on(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
+	ret = scmi_handler_device_state_set_on(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
+	if (ret) {
+		ERROR("Request to set core on failed: %d\n", ret);
+		return PSCI_E_INTERN_FAIL;
+	}
 
 	return PSCI_E_SUCCESS;
 }
