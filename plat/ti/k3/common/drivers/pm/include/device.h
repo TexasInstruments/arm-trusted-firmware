@@ -458,4 +458,19 @@ int32_t devices_deinit_flags(void);
  */
 void devices_drop_power_up_ref(void);
 
+/**
+ * \brief Set the power up reference for a device.
+ *
+ * @idx: The index of the device.
+ */
+void device_id_power_up_ref(dev_idx_t idx);
+
+/**
+ * \brief Drop the power up reference for a device
+ * @idx: The index of the device
+ *
+ * Deinitialize flags only for devices that have been set by a host.
+ */
+void device_id_drop_power_up_ref(dev_idx_t idx);
+
 #endif

@@ -281,3 +281,22 @@ void devices_drop_power_up_ref(void)
 		}
 	}
 }
+
+void device_id_power_up_ref(dev_idx_t idx)
+{
+	struct device *dev = soc_devices + idx;
+
+	device_set_state(dev, DEV_POWER_ON_ENABLED_HOST_IDX, true);
+}
+
+void device_id_drop_power_up_ref(dev_idx_t idx)
+{
+	struct device *dev = soc_devices + idx;
+
+	/* Deinitialize flags only for devices that have been set by a host */
+	if ((dev->flags != 0U) && (dev->initialized != 0U)) {
+		dev->flags = 0U;
+		device_clear_flags(dev);
+		dev->initialized = 0;
+	}
+}
