@@ -28,6 +28,8 @@
 
 volatile unsigned int val_mdctl;
 volatile unsigned int val_mdstat;
+volatile uint32_t am62l_lpm_state = 0;
+/*********** PROC BOOT CODE ******************/
 
 /* power domain indices */
 #define PD_MPU_CLST		4
@@ -155,6 +157,8 @@ set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint32_t m
 	INFO("%s: after: md_id=%d, mdstat=0x%x, pdstat=0x%x\n", __func__, md_id, mdstat, pdstat);
 }
 
+/*********** PROC BOOT CODE ENDS******************/
+
 #define CORE_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL0])
 #define CLUSTER_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL1])
 #define SYSTEM_PWR_STATE(state) ((state)->pwr_domain_state[PLAT_MAX_PWR_LVL])
@@ -276,6 +280,7 @@ static int k3_validate_power_state(unsigned int power_state,
 {
 	unsigned int pwr_lvl = psci_get_pstate_pwrlvl(power_state);
 	unsigned int pstate = psci_get_pstate_type(power_state);
+	unsigned int core = plat_my_core_pos();
 
 	if (pwr_lvl > PLAT_MAX_PWR_LVL)
 		return PSCI_E_INVALID_PARAMS;
@@ -289,6 +294,13 @@ static int k3_validate_power_state(unsigned int power_state,
 			return PSCI_E_INVALID_PARAMS;
 
 		CORE_PWR_STATE(req_state) = PLAT_MAX_RET_STATE;
+	} else if (pstate && PSTATE_TYPE_POWERDOWN) {
+		INFO("%s: (core %d): s2idle: power_state: 0x%x\n", __func__, core, power_state);
+		CORE_PWR_STATE(req_state) = PLAT_MAX_OFF_STATE;
+		CLUSTER_PWR_STATE(req_state) = PLAT_MAX_OFF_STATE;
+		SYSTEM_PWR_STATE(req_state) = PLAT_MAX_OFF_STATE;
+		// 0x2012231=Deep Sleep: comes from DT idle-state suspend param
+		am62l_lpm_state = power_state == 0x2012231 ? 0 : 6;
 	}
 
 	return PSCI_E_SUCCESS;
@@ -299,10 +311,10 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 {
 	unsigned int core, proc_id;
 	uint64_t  context_save_addr = 0x80A00000;
-	/* TODO: Pass the mode passed from kernel using s2idle
-	 * For now make mode=6 for RTC only + DDR and mdoe=0 for deepsleep
+	/*
+	 * mode=6 for RTC only + DDR and mode=0 for deepsleep
 	 */
-	uint32_t mode = 0;
+	uint32_t mode = am62l_lpm_state;
 
 	core = plat_my_core_pos();
 	proc_id = PLAT_PROC_START_ID + core;
