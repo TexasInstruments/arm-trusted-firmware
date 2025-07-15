@@ -1,4 +1,4 @@
-/* CC0 (Public domain) - see LICENSE file for details */
+/* SPDX-License-Identifier: BSD-3-Clause */
 #ifndef CCAN_CHECK_TYPE_H
 #define CCAN_CHECK_TYPE_H
 #include "config.h"
