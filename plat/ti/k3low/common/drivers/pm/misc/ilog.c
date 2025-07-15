@@ -1,5 +1,5 @@
-/*(C) Timothy B. Terriberry (tterribe@xiph.org) 2001-2009 CC0 (Public domain).
- * See LICENSE file for details. */
+/* SPDX-License-Identifier: BSD-3-Clause */
+/* Copyright (c) Timothy B. Terriberry (tterribe@xiph.org) 2001-2009 */
 #include "ilog.h"
 #include <limits.h>
 

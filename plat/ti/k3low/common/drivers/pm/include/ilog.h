@@ -1,4 +1,4 @@
-/* CC0 (Public domain) - see LICENSE file for details */
+/* SPDX-License-Identifier: BSD-3-Clause */
 #if !defined(_ilog_H)
 # define _ilog_H (1)
 # include "config.h"
