@@ -3,8 +3,7 @@
 #define CCAN_CONTAINER_OF_H
 #include <stddef.h>
 
-#include "config.h"
-#include <ccan/check_type/check_type.h>
+#include <check_type.h>
 
 /**
  * container_of - get pointer to enclosing structure
@@ -35,7 +34,6 @@
 	  ((char *)(member_ptr)						\
 	   - container_off(containing_type, member))			\
 	  + check_types_match(*(member_ptr), ((containing_type *)0)->member))
-
 
 /**
  * container_of_or_null - get pointer to enclosing structure, or NULL

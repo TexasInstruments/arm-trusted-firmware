@@ -3,8 +3,8 @@
 #define CCAN_LIST_H
 #include <stdbool.h>
 #include <assert.h>
-#include <ccan/container_of/container_of.h>
-#include <ccan/check_type/check_type.h>
+#include <lib/container_of.h>
+#include <check_type.h>
 
 /**
  * struct list_node - an entry in a doubly-linked list
@@ -19,8 +19,7 @@
  *		struct list_node list;
  *	};
  */
-struct list_node
-{
+struct list_node {
 	struct list_node *next, *prev;
 };
 
@@ -36,8 +35,7 @@ struct list_node
  *		unsigned int num_children;
  *	};
  */
-struct list_head
-{
+struct list_head {
 	struct list_node n;
 };
 
@@ -123,7 +121,7 @@ struct list_node *list_check_node(const struct list_node *n,
  * Example:
  *	static LIST_HEAD(my_global_list);
  */
-#define LIST_HEAD(name) \
+#define LIST_HEAD(name)					\
 	struct list_head name = LIST_HEAD_INIT(name)
 
 /**
@@ -243,6 +241,7 @@ static inline void list_del_from(struct list_head *h, struct list_node *n)
 	{
 		/* Thorough check: make sure it was in list! */
 		struct list_node *i;
+
 		for (i = h->n.next; i != n; i = i->next)
 			assert(i != &h->n);
 	}
@@ -282,7 +281,7 @@ static inline void list_del_from(struct list_head *h, struct list_node *n)
  *	if (!first)
  *		printf("Empty list!\n");
  */
-#define list_top(h, type, member)					\
+#define list_top(h, type, member)				\
 	((type *)list_top_((h), list_off_(type, member)))
 
 static inline const void *list_top_(const struct list_head *h, size_t off)
@@ -306,7 +305,7 @@ static inline const void *list_top_(const struct list_head *h, size_t off)
  *	if (!one)
  *		printf("Empty list!\n");
  */
-#define list_pop(h, type, member)					\
+#define list_pop(h, type, member)				\
 	((type *)list_pop_((h), list_off_(type, member)))
 
 static inline const void *list_pop_(const struct list_head *h, size_t off)
@@ -334,7 +333,7 @@ static inline const void *list_pop_(const struct list_head *h, size_t off)
  *	if (!last)
  *		printf("Empty list!\n");
  */
-#define list_tail(h, type, member) \
+#define list_tail(h, type, member)				\
 	((type *)list_tail_((h), list_off_(type, member)))
 
 static inline const void *list_tail_(const struct list_head *h, size_t off)
@@ -357,7 +356,7 @@ static inline const void *list_tail_(const struct list_head *h, size_t off)
  *	list_for_each(&parent->children, child, list)
  *		printf("Name: %s\n", child->name);
  */
-#define list_for_each(h, i, member)					\
+#define list_for_each(h, i, member)				\
 	list_for_each_off(h, i, list_off_var_(i, member))
 
 /**
@@ -386,7 +385,7 @@ static inline const void *list_tail_(const struct list_head *h, size_t off)
  * @member: the list_node member of the structure
  *
  * This is a convenient wrapper to iterate @i over the entire list.  It's
- * a for loop, so you can break and continue as normal.  The extra variable
+ * a for loop, so you can break and continue as normal.	 The extra variable
  * @nxt is used to hold the next element, so you can delete @i from the list.
  *
  * Example:
@@ -442,7 +441,7 @@ static inline const void *list_tail_(const struct list_head *h, size_t off)
  * @from: the list to empty.
  *
  * This takes the entire contents of @from and moves it to the end of
- * @to.  After this @from will be empty.
+ * @to.	 After this @from will be empty.
  *
  * Example:
  *	struct list_head adopter;
@@ -527,11 +526,11 @@ static inline void list_prepend_list(struct list_head *to,
  *				offsetof(struct child, list))
  *		printf("Name: %s\n", child->name);
  */
-#define list_for_each_off(h, i, off)                                    \
-  for (i = list_node_to_off_(list_debug(h)->n.next, (off));             \
-       list_node_from_off_((void *)i, (off)) != &(h)->n;                \
-       i = list_node_to_off_(list_node_from_off_((void *)i, (off))->next, \
-                             (off)))
+#define list_for_each_off(h, i, off)					\
+	for (i = list_node_to_off_(list_debug(h)->n.next, (off));	\
+	     list_node_from_off_((void *)i, (off)) != &(h)->n;		\
+	     i = list_node_to_off_(list_node_from_off_((void *)i, (off))->next, \
+				   (off)))
 
 /**
  * list_for_each_safe_off - iterate through a list of memory regions, maybe
@@ -549,18 +548,18 @@ static inline void list_prepend_list(struct list_head *to,
  *		next, offsetof(struct child, list))
  *		printf("Name: %s\n", child->name);
  */
-#define list_for_each_safe_off(h, i, nxt, off)                          \
-  for (i = list_node_to_off_(list_debug(h)->n.next, (off)),             \
-         nxt = list_node_to_off_(list_node_from_off_(i, (off))->next,   \
-                                 (off));                                \
-       list_node_from_off_(i, (off)) != &(h)->n;                        \
-       i = nxt,                                                         \
-         nxt = list_node_to_off_(list_node_from_off_(i, (off))->next,   \
-                                 (off)))
+#define list_for_each_safe_off(h, i, nxt, off)				\
+	for (i = list_node_to_off_(list_debug(h)->n.next, (off)),	\
+		     nxt = list_node_to_off_(list_node_from_off_(i, (off))->next, \
+					     (off));			\
+	     list_node_from_off_(i, (off)) != &(h)->n;			\
+	     i = nxt,							\
+		     nxt = list_node_to_off_(list_node_from_off_(i, (off))->next, \
+					     (off)))
 
 
 /* Other -off variants. */
-#define list_entry_off(n, type, off)		\
+#define list_entry_off(n, type, off)			\
 	((type *)list_node_from_off_((n), (off)))
 
 #define list_head_off(h, type, off)		\
@@ -569,13 +568,13 @@ static inline void list_prepend_list(struct list_head *to,
 #define list_tail_off(h, type, off)		\
 	((type *)list_tail_((h), (off)))
 
-#define list_add_off(h, n, off)                 \
+#define list_add_off(h, n, off)				\
 	list_add((h), list_node_from_off_((n), (off)))
 
-#define list_del_off(n, off)                    \
+#define list_del_off(n, off)				\
 	list_del(list_node_from_off_((n), (off)))
 
-#define list_del_from_off(h, n, off)			\
+#define list_del_from_off(h, n, off)				\
 	list_del_from(h, list_node_from_off_((n), (off)))
 
 /* Offset helper functions so we only single-evaluate. */
