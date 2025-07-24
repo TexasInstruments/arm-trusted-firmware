@@ -128,6 +128,27 @@ license text is included in those source files.
    -  ``tools/memory/memory/mapsummary.py``
    -  ``tools/memory/memory/mapsummary_flamegraph.hmtl``
 
+- Some source files originating from the `CCAN`_ project.
+  These files are licensed under the CC0, which allows to re-license them
+  to BSD-3-Clause. These file are re-licensed from CC0 to BSD-3-Clause.
+  These files are:
+
+   -  ``plat/ti/k3low/common/drivers/pm/include/build_assert.h``
+   -  ``plat/ti/k3low/common/drivers/pm/include/check_type.h``
+   -  ``plat/ti/k3low/common/drivers/pm/include/ilog.h``
+   -  ``plat/ti/k3low/common/drivers/pm/include/lib/container_of.h``
+   -  ``plat/ti/k3low/common/drivers/pm/misc/ilog.c``
+
+-  Some source files originating from the `CCAN`_ project are licensed
+   under the MIT license, which is a permissive license compatible
+   with BSD-3-Clause. Any contributions to this code must also be made
+   under the terms of `MIT`_. The `BSD-MIT`_ is file named BSD-MIT
+   but the licensing wordings are of standard `MIT`_, hence considering it
+   as `MIT`_. Also, there is no such license as BSD-MIT.
+
+   These files are:
+   -  ``plat/ti/k3low/common/drivers/pm/include/list.h``
+
 .. _FreeBSD: http://www.freebsd.org
 .. _Linux MIT license: https://raw.githubusercontent.com/torvalds/linux/master/LICENSES/preferred/MIT
 .. _SCC: http://www.simple-cc.org/
@@ -136,3 +157,7 @@ license text is included in those source files.
 .. _pydevicetree: https://pypi.org/project/pydevicetree/
 .. _edk2: https://github.com/tianocore/edk2
 .. _mbed OS: https://github.com/ARMmbed/mbed-os/
+.. _CCAN: https://git.ozlabs.org/?p=ccan
+.. _CC0: https://git.ozlabs.org/?p=ccan;a=blob;f=licenses/CC0;hb=89ab9bee3b2e600bb82cf2c0c9d8291825370888
+.. _BSD-MIT: https://git.ozlabs.org/?p=ccan;a=blob;f=licenses/BSD-MIT;hb=ab43c3d0de45ba1012b4e3ff669517f78cac6092
+.. _MIT: https://opensource.org/license/mit
