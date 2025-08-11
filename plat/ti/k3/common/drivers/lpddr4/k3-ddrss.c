@@ -537,6 +537,20 @@ set_psc_def_pll:
 	else
 		ddrss_set_pll(ddrss.ddr_freq1);
 
+	/* Disable the DDR LPSCs to start in known state */
+	ret = set_main_psc_state(PD_DDR, LPSC_MAIN_DDR_DATA_ISO_N, PSC_PD_ON, PSC_SYNCRESETDISABLE);
+	if (ret != 0)
+		return ret;
+
+	ret = set_main_psc_state(PD_DDR, LPSC_MAIN_DDR_CFG_ISO_N, PSC_PD_ON, PSC_SYNCRESETDISABLE);
+	if (ret != 0)
+		return ret;
+
+	ret = set_main_psc_state(PD_DDR, LPSC_MAIN_DDR_LOCAL, PSC_PD_OFF, PSC_SYNCRESETDISABLE);
+	if (ret != 0)
+		return ret;
+
+	/* Enable DDR LPSCs to configure the controllers */
 	ret = set_main_psc_state(PD_DDR, LPSC_MAIN_DDR_LOCAL, PSC_PD_ON, PSC_ENABLE);
 	if (ret != 0U)
 		return ret;	
