@@ -464,22 +464,40 @@ bool clk_div_reg_set_div(struct clk *clkp, uint32_t d)
 
 	n = data_div->n;
 	if ((d_val_p <= n) && (!drv_div->valid_div || drv_div->valid_div(clkp, d_val_p))) {
-		uint32_t v;
+		uint32_t reg, v;
 
 		if (data_reg->start_at_1 == 0U) {
 			d_val_p -= 1U;
 			n -= 1U;
 		}
 
-		v = readl(data_reg->reg);
-		v &= (uint32_t) ~(((1U << (uint32_t) ilog32(n)) - 1U) << data_reg->bit);
+		reg = readl(data_reg->reg);
+		v = reg & ((uint32_t) ~(((1U << (uint32_t) ilog32(n)) - 1U) << data_reg->bit));
 		v |= d_val_p << data_reg->bit;
-		ti_clk_writel(v, (uint32_t) data_reg->reg);
+		if(v != reg) {
+			ti_clk_writel(v, (uint32_t) data_reg->reg);
+		}		
 		ret = true; /* HARD CODED */
 
 	}
 	return ret;
 }
+
+#ifdef CONFIG_LPM_CLK
+int32_t clk_div_suspend_save(struct clk *clkp)
+{
+	clkp->saved_val = clk_div_reg_get_div(clkp);
+
+	return SUCCESS;
+}
+
+int32_t clk_div_resume_restore(struct clk *clkp)
+{
+	clk_div_reg_set_div(clkp, clkp->saved_val);
+
+	return SUCCESS;
+}
+#endif
 
 const struct clk_drv_div clk_drv_div_reg_ro = {
 	.drv			= {
@@ -494,6 +512,10 @@ const struct clk_drv_div clk_drv_div_reg = {
 		.set_freq	= clk_div_set_freq,
 		.get_freq	= clk_div_get_freq,
 		.init		= clk_div_init,
+#ifdef CONFIG_LPM_CLK
+		.suspend_save	= clk_div_suspend_save,
+		.resume_restore = clk_div_resume_restore,
+#endif
 	},
 	.set_div		= clk_div_reg_set_div,
 	.get_div		= clk_div_reg_get_div,
