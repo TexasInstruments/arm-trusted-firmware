@@ -11,12 +11,14 @@
 #include <device_wrapper.h>
 #include <devices.h>
 #include <device.h>
+#include <drivers/arm/gicv3.h>
 #include <gtc.h>
 #include <k3_console.h>
 #include <k3_gicv3.h>
 #include <lib/el3_runtime/cpu_data.h>
 #include <lib/mmio.h>
 #include <lib/psci/psci.h>
+#include <lib/utils_def.h>
 #include <lpm_stub.h>
 #include <plat_scmi_def.h>
 #include <plat/common/platform.h>
@@ -351,6 +353,12 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 	ti_init_scmi_server();
 	k3_lpm_stub_copy_to_sram();
 	clks_resume();
+
+	/* 60 irqn = RTC */
+	gicv3_set_spi_routing(60, GICV3_IRM_ANY, 0);
+	gicv3_enable_interrupt(60, 0);
+	gicv3_set_interrupt_pending(60, 0);
+	plat_ic_raise_ns_sgi(60, 0);
 }
 
 static void am62l_get_sys_suspend_power_state(psci_power_state_t *req_state)
