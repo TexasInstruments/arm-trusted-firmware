@@ -325,6 +325,10 @@ static bool clk_pll_16fft_wait_for_lock(struct clk *clock_ptr)
 #if defined(CONFIG_CLK_PLL_16FFT_FRACF_CALIBRATION)
 	uint32_t freq_ctrl1;
 	uint32_t pllfm;
+	uint32_t pll_type;
+	uint32_t cfg;
+	int32_t err;
+	uint32_t cal, cal_en;
 #endif
 
 	clock_data = clk_get_data(clock_ptr);
@@ -357,8 +361,6 @@ static bool clk_pll_16fft_wait_for_lock(struct clk *clock_ptr)
 		freq_ctrl1 = readl(pll->base + (uint32_t) PLL_16FFT_FREQ_CTRL1(pll->idx));
 		pllfm = freq_ctrl1 & PLL_16FFT_FREQ_CTRL1_FB_DIV_FRAC_MASK;
 		pllfm >>= PLL_16FFT_FREQ_CTRL1_FB_DIV_FRAC_SHIFT;
-		uint32_t pll_type;
-		uint32_t cfg;
 
 		cfg = readl(pll->base + (uint32_t) PLL_16FFT_CFG(pll->idx));
 		pll_type = (cfg & PLL_16FFT_CFG_PLL_TYPE_MASK) >> PLL_16FFT_CFG_PLL_TYPE_SHIFT;
