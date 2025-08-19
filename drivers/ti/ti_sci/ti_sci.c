@@ -25,6 +25,8 @@
 __section(".tzfw_coherent_mem")
 #endif
 static uint8_t message_sequence;
+extern uint8_t suspend_controller;
+#define SUSPEND_CONTROLLER_A72 0
 
 DEFINE_BAKERY_LOCK(ti_sci_xfer_lock);
 
@@ -1738,6 +1740,12 @@ int ti_sci_enter_sleep(uint8_t proc_id,
 	req.core_resume_hi = (core_resume_addr & TISCI_ADDR_HIGH_MASK) >>
 			     TISCI_ADDR_HIGH_SHIFT;
 
+#ifdef K3_LPM_DDR_SAVE_ADDRESS
+	if (suspend_controller == SUSPEND_CONTROLLER_A72) {
+		req.hdr.flags |= TI_SCI_FLAG_REQ_FWD2DM;
+	}
+#endif
+
 	ret = ti_sci_do_xfer(&xfer);
 	if (ret != 0U) {
 		ERROR("Transfer send failed (%d)\n", ret);
@@ -1781,6 +1789,41 @@ int ti_sci_lpm_get_next_sys_mode(uint8_t *next_mode)
 	}
 
 	*next_mode = resp.mode;
+
+	return 0;
+}
+
+/*
+ * ti_sci_cmd_get_suspend_controller - Get the host which initiated system suspend
+ *
+ * @cur_controller: pointer to a variable that will store the current controller
+ *
+ * Return: 0 if all goes well, else appropriate error message
+ */
+int ti_sci_cmd_get_suspend_controller(uint8_t *cur_controller)
+{
+	struct ti_sci_msg_req_get_suspend_controller req = { 0 };
+	struct ti_sci_msg_resp_get_suspend_controller resp = { 0 };
+	struct ti_sci_xfer xfer;
+	int ret;
+
+	ret = ti_sci_setup_one_xfer(TI_SCI_MSG_GET_SUSPEND_CONTROLLER, 0,
+				    &req, sizeof(req),
+				    &resp, sizeof(resp),
+				    &xfer);
+
+	if (ret != 0U) {
+		ERROR("Message alloc failed (%d)\n", ret);
+		return ret;
+	}
+
+	ret = ti_sci_do_xfer(&xfer);
+	if (ret != 0) {
+		ERROR("Transfer send failed (%d)\n", ret);
+		return ret;
+	}
+
+	*cur_controller = resp.suspend_controller;
 
 	return 0;
 }

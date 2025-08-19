@@ -56,6 +56,7 @@
 /* TFA encrypt/decrypt messages */
 #define TISCI_MSG_LPM_ENCRYPT		0x030F
 #define TISCI_MSG_LPM_DECRYPT		0x0310
+#define TI_SCI_MSG_GET_SUSPEND_CONTROLLER 0x0313
 
 /**
  * struct ti_sci_secure_msg_hdr - Header that prefixes all TISCI messages sent
@@ -86,6 +87,10 @@ struct ti_sci_msg_hdr {
 #define TI_SCI_FLAG_REQ_ACK_ON_PROCESSED	TI_SCI_MSG_FLAG(1)
 #define TI_SCI_FLAG_RESP_GENERIC_NACK		0x0
 #define TI_SCI_FLAG_RESP_GENERIC_ACK		TI_SCI_MSG_FLAG(1)
+
+#ifdef K3_LPM_DDR_SAVE_ADDRESS
+#define TI_SCI_FLAG_REQ_FWD2DM				TI_SCI_MSG_FLAG(3)
+#endif
 	/* Additional Flags */
 	uint32_t flags;
 } __packed;
@@ -847,5 +852,22 @@ struct ti_sci_msg_req_encrypt_tfa {
 struct ti_sci_msg_resp_encrypt_tfa {
 	struct ti_sci_msg_hdr hdr;
 } __attribute__((__packed__));
+
+struct ti_sci_msg_req_get_suspend_controller {
+	struct ti_sci_msg_hdr hdr;
+} __packed;
+
+/**
+* \brief Response for TI_SCI_MSG_GET_SUSPEND_CONTROLLER
+*
+* \param hdr TISCI header to provide ACK/NAK flags to the host.
+* \param suspend_controller Value indicating the intiator of the LPM sequence
+*
+*/
+struct ti_sci_msg_resp_get_suspend_controller {
+	struct ti_sci_msg_hdr hdr;
+	uint32_t suspend_controller;
+} __packed;
+
 
 #endif /* TI_SCI_PROTOCOL_H */

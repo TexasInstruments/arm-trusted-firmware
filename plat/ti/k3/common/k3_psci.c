@@ -22,6 +22,7 @@
 #define SYSTEM_PWR_STATE(state) ((state)->pwr_domain_state[PLAT_MAX_PWR_LVL])
 
 uintptr_t k3_sec_entrypoint;
+uint8_t suspend_controller = UINT8_MAX;
 
 static void k3_cpu_standby(plat_local_state_t cpu_state)
 {
@@ -265,9 +266,11 @@ static void k3_pwr_domain_suspend_to_mode(const psci_power_state_t *target_state
 			   BL31_SIZE,
 			   K3_LPM_DDR_SAVE_ADDRESS,
 			   K3_LPM_DDR_MAX_SAVE_SZ);
-#endif
-	k3_pwr_domain_off(target_state);
 
+	ti_sci_cmd_get_suspend_controller(&suspend_controller);
+#endif
+
+	k3_pwr_domain_off(target_state);
 	ti_sci_enter_sleep(proc_id, mode, k3_sec_entrypoint);
 }
 

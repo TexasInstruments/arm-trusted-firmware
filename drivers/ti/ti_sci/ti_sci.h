@@ -280,4 +280,13 @@ int ti_sci_encrypt_tfa(uint64_t unencrypted_address,
 		       uint64_t encrypted_address,
 		       uint32_t max_encrypted_len);
 
+
+/**
+ * - ti_sci_cmd_get_suspend_controller - Command to get the suspend initiator for the LPM phase.
+ *		@cur_controller: pointer to a variable that will store the current controller
+ *
+ * Returns 0 for successful request, else returns corresponding error code on failure.
+ */
+int ti_sci_cmd_get_suspend_controller(uint8_t* cur_controller);
+
 #endif /* TI_SCI_H */
