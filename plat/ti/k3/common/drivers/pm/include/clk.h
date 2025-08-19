@@ -70,6 +70,7 @@ struct clk {
 	uint8_t	ssc_block_count;
 	uint8_t	freq_change_block_count;
 	uint8_t	flags;
+	uint32_t			saved_val;
 };
 
 /* Only allows div up to 63, and clk_ids up to 1023 */
@@ -152,6 +153,23 @@ struct clk_drv {
 	 */
 	bool (*notify_freq)(struct clk *clkp, uint32_t parent_freq_hz, bool query);
 
+	/**
+	 * \brief Suspend and save clock context during suspend path.
+	 *
+	 * \param clkp The clock to suspend and save
+	 *
+	 * \return SUCCESS for success, error code otherwise
+	 */
+	int32_t (*suspend_save)(struct clk *clkp);
+
+	/**
+	 * \brief Resume and restore clock context during resume path.
+	 *
+	 * \param clkp The clock to resume and restore
+	 *
+	 * \return SUCCESS for success, error code otherwise
+	 */
+	int32_t (*resume_restore)(struct clk *clkp);
 };
 
 struct clk_data_reg {
@@ -308,14 +326,15 @@ int32_t clk_init(void);
  */
 int32_t clk_deinit_pm_devgrp(uint8_t pm_devgrp);
 
-static inline int32_t clks_suspend(void)
-{
-	return SUCCESS;
-}
-static inline int32_t clks_resume(void)
-{
-	return SUCCESS;
-}
+/**
+ * \brief Loop through all clocks on device and call suspend_save handlers.
+ */
+int32_t clks_suspend(void);
+
+/**
+ * \brief Loop through all clocks on device and call resume_restore handlers.
+ */
+int32_t clks_resume(void);
 
 void clk_drop_pwr_up_en(void);
 
