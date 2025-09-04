@@ -1,0 +1,20 @@
+name: checkpatch review
+
+# Controls when the workflow will run
+on: [pull_request]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  my_review:
+    name: checkpatch review
+    runs-on: ubuntu-latest
+    steps:
+    - name: 'Calculate PR commits + 1'
+      run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> $GITHUB_ENV
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: ${{ env.PR_FETCH_DEPTH }}
+    - name: Run checkpatch review
+      uses: webispy/checkpatch-action@v9
+
