@@ -23,7 +23,11 @@
 #include <plat_scmi_def.h>
 #include <platform_def.h>
 
+#define MAX_PROTOCOL_IN_LIST            8U
+
 const uint8_t ti_scmi_protocol_table[] = {
+	SCMI_PROTOCOL_ID_POWER_DOMAIN,
+	SCMI_PROTOCOL_ID_CLOCK,
 	0,
 };
 
@@ -70,12 +74,24 @@ struct scmi_msg_channel *plat_scmi_get_channel(unsigned int agent_id)
 	return &ti_scmi_channel[agent_id];
 }
 
+void ti_clk_and_dev_init(void)
+{
+	VERBOSE("%s started!\n", __func__);
+	if (clk_init()) {
+		WARN("%s: Clock init failed!\n", __func__);
+	}
+
+	if (devices_init()) {
+		WARN("%s: Devices init failed!\n", __func__);
+	}
+}
+
 void ti_init_scmi_server(void)
 {
 	size_t i;
 
 	for (i = 0U; i < TI_SCMI_CHANNELS; i++)
 		scmi_smt_init_agent_channel(&ti_scmi_channel[i]);
-
+	ti_clk_and_dev_init();
 }
 
