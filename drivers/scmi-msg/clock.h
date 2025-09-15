@@ -11,7 +11,7 @@
 
 #include <lib/utils_def.h>
 
-#define SCMI_PROTOCOL_VERSION_CLOCK	0x30000U
+#define SCMI_PROTOCOL_VERSION_CLOCK	0x20000U
 
 /*
  * Identifiers of the SCMI Clock Management Protocol commands
@@ -22,10 +22,6 @@ enum scmi_clock_command_id {
 	SCMI_CLOCK_RATE_SET = 0x005,
 	SCMI_CLOCK_RATE_GET = 0x006,
 	SCMI_CLOCK_CONFIG_SET = 0x007,
-	SCMI_CLOCK_CONFIG_GET = 0x00B,
-	SCMI_CLOCK_POSSIBLE_PARENTS_GET = 0xC,
-	SCMI_CLOCK_PARENT_SET = 0xD,
-	SCMI_CLOCK_PARENT_GET = 0xE,
 };
 
 /* Protocol attributes */
@@ -46,7 +42,6 @@ struct scmi_clock_attributes_p2a {
 	int32_t status;
 	uint32_t attributes;
 	char clock_name[SCMI_CLOCK_NAME_LENGTH_MAX];
-	uint32_t clock_enable_delay;
 };
 
 /*
@@ -103,73 +98,12 @@ struct scmi_clock_rate_set_p2a {
 #define SCMI_CLOCK_CONFIG_SET_ENABLE_MASK \
 	BIT(SCMI_CLOCK_CONFIG_SET_ENABLE_POS)
 
-#define SCMI_CLOCK_CONFIG_EXTENDED_SET_ENABLE_MASK	  GENMASK_32(23, 16)
-
 struct scmi_clock_config_set_a2p {
 	uint32_t clock_id;
 	uint32_t attributes;
-	uint32_t extended_config_val;
 };
 
 struct scmi_clock_config_set_p2a {
-	int32_t status;
-};
-
-/*
- * Clock Config Get
- */
-
-#define SCMI_CLOCK_CONFIG_EXTENDED_GET_ENABLE_MASK	  GENMASK_32(7, 0)
-
-struct scmi_clock_config_get_a2p {
-	uint32_t clock_id;
-	uint32_t flags;
-};
-
-struct scmi_clock_config_get_p2a {
-	int32_t status;
-	uint32_t attributes;
-	uint32_t config;
-	uint32_t extended_config_val;
-};
-
-/*
- * Clock Possible Parents
- */
-struct scmi_clock_possible_parents_get_a2p {
-	uint32_t clock_id;
-	uint32_t skip_parents;
-};
-
-struct scmi_clock_possible_parents_get_p2a {
-	int32_t status;
-	uint32_t num_parents_flags;
-	uint32_t possible_parents[];
-};
-
-/*
- * Clock Parent Get
- */
-#define SCMI_CLOCK_PARENT_GET_ENABLE_POS	28
-
-struct scmi_clock_parent_get_a2p {
-	uint32_t clock_id;
-};
-
-struct scmi_clock_parent_get_p2a {
-	int32_t status;
-	uint32_t parent_id;
-};
-
-/*
- * Clock Parent Set
- */
-struct scmi_clock_parent_set_a2p {
-	uint32_t clock_id;
-	uint32_t parent_id;
-};
-
-struct scmi_clock_parent_set_p2a {
 	int32_t status;
 };
 
