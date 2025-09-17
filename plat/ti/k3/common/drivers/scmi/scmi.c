@@ -31,8 +31,8 @@ const uint8_t ti_scmi_protocol_table[] = {
 	0,
 };
 
-static const char vendor[] = "Texas";
-static const char sub_vendor[] = "Instruments";
+static const char vendor[] = "TI";
+static const char sub_vendor[] = "";
 
 static struct scmi_msg_channel scmi_channel[] = {
 	[0] = {
