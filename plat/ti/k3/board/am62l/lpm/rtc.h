@@ -20,19 +20,4 @@ struct rtc_time {
  */
 void lpm_rtc_read_time(struct rtc_time *rtc);
 
-/**
- *  \brief  Initialize RTC
- */
-void rtc_init(void);
-
-/**
- *  \brief  Resume RTC after lower power mode exit
- */
-void rtc_resume(void);
-
-/**
- *  \brief  SUspend RTC for lower power mode entry
- */
-void rtc_suspend(void);
-
 #endif /* __LPM_RTC_H__ */

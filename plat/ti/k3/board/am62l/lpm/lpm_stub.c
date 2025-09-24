@@ -493,7 +493,6 @@ __wkupsramfunc void k3_lpm_resume_c(void)
 
 void k3_suspend_to_ram(uint32_t mode)
 {
-	rtc_suspend();
 	k3_lpm_jump_to_stub(mode);
 }
 

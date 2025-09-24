@@ -307,7 +307,6 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 	k3_gic_cpuif_enable();
 	ti_init_scmi_server();
 	k3_lpm_stub_copy_to_sram();
-	rtc_resume();
 	clks_resume();
 }
 
