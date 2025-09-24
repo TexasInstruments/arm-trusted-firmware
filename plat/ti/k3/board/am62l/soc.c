@@ -37,7 +37,6 @@ int ti_soc_init(void)
 	} else {
 		INFO("A53 stub copy passed\n");
 	}
-	rtc_init();
 #endif
 	ret = ti_sci_get_revision(&version);
 	if (ret) {
