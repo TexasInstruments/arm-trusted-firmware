@@ -37,6 +37,7 @@ const mmap_region_t plat_k3_mmap[] = {
 #define MAIN_PLL_MMR_BASE			(0x04060000UL)
 #define MAIN_PLL_MMR_CFG_PLL8_HSDIV_CTRL0	(0x00008080UL)
 #define CTL_MMR_BASE_CFG5			(0x43050000U)
+#define AM62L_BOOT_PARAM_TABLE_INDEX		(0x70816e70U)
 #define CANUART_WAKE_OFF_MODE_STAT		(0x1318U)
 #define RTC_ONLY_PLUS_DDR_MAGIC_WORD		(0x6D555555U)
 #define BL1_DONE_MSG_ID				(0x810A)
@@ -45,6 +46,8 @@ const mmap_region_t plat_k3_mmap[] = {
 #define FSS_OSPI_CTRL_BASE (0xFC40000)
 #define FSS_OSPI_FLASH_CMD_CTRL_REG (0x90)
 #define FSS_OSPI_OPCODE_EXT_LOWER_REG (0xE0)
+
+#define BACKUP_BOOT_MODE_FS			BIT(13)
 
 meminfo_t *bl1_plat_sec_mem_layout(void)
 {
@@ -176,7 +179,8 @@ void k3_bl1_handoff(void)
 		a53_rom_msg_obj.imagelocator.imageoffset[2] = 0x0;
 		a53_rom_msg_obj.imagelocator.imageoffset[3] = 0x0;
 
-		if ((mmio_read_32(WKUP_BOOT_MODE) & 0xf8) == 0x40) {
+		if ((mmio_read_32(WKUP_BOOT_MODE) & 0xf8) == 0x40 ||
+		    (mmio_read_32(AM62L_BOOT_PARAM_TABLE_INDEX) == 1 && mmio_read_32(WKUP_BOOT_MODE) & BACKUP_BOOT_MODE_FS)) {
 			/* SD boot mode */
 			memset(a53_rom_msg_obj.imagelocator.filename, 0, sizeof(a53_rom_msg_obj.imagelocator.filename));
 			snprintf(a53_rom_msg_obj.imagelocator.filename, sizeof(a53_rom_msg_obj.imagelocator.filename), "%s%s", "\\", "tispl.bin");
