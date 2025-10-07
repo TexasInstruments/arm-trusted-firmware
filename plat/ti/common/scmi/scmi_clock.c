@@ -185,10 +185,10 @@ int32_t plat_scmi_clock_get_possible_parents(unsigned int agent_id,
 }
 
 int32_t plat_scmi_clock_get_parent(unsigned int agent_id,
-				   unsigned int scmi_id)
+				   unsigned int scmi_id,
+                                   unsigned int *parent_id)
 {
 	ti_scmi_clock_t *clock, *parent;
-	uint32_t parent_id = 0;
 	int32_t status = 0;
 	int32_t n_parents;
 
@@ -197,7 +197,7 @@ int32_t plat_scmi_clock_get_parent(unsigned int agent_id,
 	if (clock == 0)
 		return SCMI_NOT_FOUND;
 
-	status = scmi_handler_clock_get_clock_parent(clock->dev_id, clock->clock_id, &parent_id);
+	status = scmi_handler_clock_get_clock_parent(clock->dev_id, clock->clock_id, parent_id);
 	if (status)
 		return SCMI_GENERIC_ERROR;
 
@@ -206,7 +206,7 @@ int32_t plat_scmi_clock_get_parent(unsigned int agent_id,
 		/* Loop through the parents to identify the parent that matches the returned ID */
 		for (int i = 1; i <= n_parents; i++) {
 			parent = ti_scmi_get_clock(agent_id, (scmi_id - i));
-			if (parent != NULL && parent->clock_id == parent_id) {
+			if (parent != NULL && parent->clock_id == *parent_id) {
 				VERBOSE("scmi_clock_get_parent parent_id = %d\n", scmi_id - i);
 				return scmi_id - i;
 			}
