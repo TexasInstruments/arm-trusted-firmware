@@ -152,105 +152,147 @@ __wkupsramfunc void disable_main_pll(void)
  * @brief Save and disable USB LPSC
  *
  */
-__wkupsramfunc static void save_and_disable_usb_lpsc(void)
+__wkupsramfunc static int32_t save_and_disable_usb_lpsc(void)
 {
+	int32_t ret = 0;
+
 	usb0_state = psc_raw_lpsc_get_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB0);
 	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB0, MDCTL_STATE_DISABLE, 0);
 	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
 
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB0_ISO_N, MDCTL_STATE_DISABLE, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	if (ret == 0) {
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB0_ISO_N, MDCTL_STATE_DISABLE, 0);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	}
 
-	usb1_state = psc_raw_lpsc_get_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1);
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1, MDCTL_STATE_DISABLE, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	if (ret == 0) {
+		usb1_state = psc_raw_lpsc_get_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1);
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1, MDCTL_STATE_DISABLE, 0);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	}
 
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1_ISO_N, MDCTL_STATE_DISABLE, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	if (ret == 0) {
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1_ISO_N, MDCTL_STATE_DISABLE, 0);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	}
+
+	return ret;
 }
 
 /**
  * @brief Save and disable USB LPSC
  *
  */
-__wkupsramfunc static void restore_usb_lpsc(void)
+__wkupsramfunc static int32_t restore_usb_lpsc(void)
 {
+	int32_t ret;
+
 	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB0, usb0_state, 0);
 	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
 
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB0_ISO_N, usb0_state, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	if (ret == 0) {
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB0_ISO_N, usb0_state, 0);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	}
 
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1, usb1_state, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	if (ret == 0) {
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1, usb1_state, 0);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	}
 
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1_ISO_N, usb1_state, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	if (ret == 0) {
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_GP_USB1_ISO_N, usb1_state, 0);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, GP_CORE_CTL);
+	}
+
+	return ret;
 }
 
 /**
  * @brief Disable DDR LPSC
  *
  */
-__wkupsramfunc void disable_ddr_lpsc(void)
+__wkupsramfunc int32_t disable_ddr_lpsc(void)
 {
+	int32_t ret;
+
 	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_DATA_ISO_N,
 			       MDCTL_STATE_SWRSTDISABLE, 0);
 	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+	ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
 
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_CFG_ISO_N,
+	if (ret == 0) {
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_CFG_ISO_N,
 			       MDCTL_STATE_SWRSTDISABLE, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+	}
 
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_LOCAL,
+	if (ret == 0) {
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_LOCAL,
 			       MDCTL_STATE_SWRSTDISABLE, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+	}
+
+	return ret;
 }
 
 /**
  * @brief Enable DDR LPSC
  *
  */
-__wkupsramfunc void enable_ddr_lpsc(void)
+__wkupsramfunc int32_t enable_ddr_lpsc(void)
 {
+	int32_t ret;
+
 	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_LOCAL,
 			       MDCTL_STATE_ENABLE, 0);
 	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+	ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
 
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_CFG_ISO_N,
-			       MDCTL_STATE_ENABLE, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+	if (ret == 0) {
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_CFG_ISO_N,
+					MDCTL_STATE_ENABLE, 0);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+	}
 
-	psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_DATA_ISO_N,
-			       MDCTL_STATE_ENABLE, 0);
-	psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
-	psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+	if (ret == 0) {
+		psc_raw_lpsc_set_state(K3_MAIN_PSC_BASE, LPSC_MAIN_DDR_DATA_ISO_N,
+					MDCTL_STATE_ENABLE, 0);
+		psc_raw_pd_initiate(K3_MAIN_PSC_BASE, PD_DDR);
+		ret = psc_raw_pd_wait(K3_MAIN_PSC_BASE, PD_DDR);
+	}
+
+	return ret;
 }
 
 /**
  * @brief Restore main domain plls
  *
  */
-__wkupsramfunc void restore_main_pll(void)
+__wkupsramfunc int32_t restore_main_pll(void)
 {
 	int i;
+	int32_t ret = 0;
 
 	for (i = 0; i < num_main_plls_save_rstr; i++) {
-		pll_restore(main_plls_save_rstr[i]);
+		ret = pll_restore(main_plls_save_rstr[i]);
+		if (ret != 0) {
+			return ret;
+		}
 	}
+
+	return ret;
 }
 
 __wkupsramfunc void lpm_abort(void)
