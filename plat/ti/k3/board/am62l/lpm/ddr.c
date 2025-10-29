@@ -199,7 +199,6 @@ __wkupsramfunc int32_t put_ddr_in_rtc_lpm(void)
 	if (req_type == 0U) {
 		write_mmr_field((MAIN_PLL_MMR_BASE + (0U * 0x1000U) + ((2U * 0x4U) + 0x80U)), 0x4FU, 7U, 0U);
 	} else {
-		lpm_seq_trace_fail(0xF3);
 		return -1;
 	}
 	mmio_write_32(((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_ACK)), 0x1U);
@@ -213,7 +212,6 @@ __wkupsramfunc int32_t put_ddr_in_rtc_lpm(void)
 	req_type = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_ACK)) & 0x01U);
 	if (req_type == 0U) {
 	} else {
-		lpm_seq_trace_fail(0xF4);
 		return -2;
 	}
 	req = mmio_read_32(WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_REQ);

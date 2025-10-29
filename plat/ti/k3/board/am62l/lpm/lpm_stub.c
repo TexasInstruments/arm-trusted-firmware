@@ -141,10 +141,7 @@ __wkupsramfunc void disable_main_pll(void)
 	int i;
 
 	for (i = 0; i < num_main_plls_save_rstr; i++) {
-
-		lpm_seq_trace(0xD1);
 		pll_disable(main_plls_save_rstr[i]);
-		lpm_seq_trace_fail(0xD1);
 	}
 }
 
@@ -298,7 +295,6 @@ __wkupsramfunc int32_t restore_main_pll(void)
 __wkupsramfunc void lpm_abort(void)
 {
 	volatile int a = 0x1234;
-	lpm_seq_trace_fail(0xF5);
 	while (a) {
 	}
 }
@@ -351,28 +347,45 @@ __wkupsramsuspendentry void k3_lpm_stub_entry(uint32_t mode)
 {
 	if (mode == 6) {
 		/* Wait for a53_1 to turn off */
-		lpm_wait_for_secondary_core_down();
-		lpm_seq_trace(0x10);
+		if (lpm_wait_for_secondary_core_down() == false) {
+			lpm_seq_trace_fail(0x1);
+			lpm_abort();
+		} else {
+			lpm_seq_trace(0x1);
+		}
 
-		lpm_sleep_wait_for_tifs_wfi();
-		lpm_seq_trace(0x20);
+		if (lpm_sleep_wait_for_tifs_wfi() == false) {
+			lpm_seq_trace_fail(0x2);	
+			lpm_abort();
+		} else {
+			lpm_seq_trace(0x2);
+		}
 
-		/*Place DDR into self-refresh */
-		put_ddr_in_rtc_lpm();
-		lpm_seq_trace(0x30);
+		/* Place DDR into self-refresh */
+		if (put_ddr_in_rtc_lpm() != 0) { 
+			lpm_seq_trace_fail(0x3);
+			lpm_abort();
+		} else {
+			lpm_seq_trace(0x3);
+		}
 
-		disable_ddr_lpsc();
-		lpm_seq_trace(0x40);
+		/*	Disable the LPSCs for DDR */ 
+		if (disable_ddr_lpsc() != 0) {
+			lpm_seq_trace_fail(0x4);
+			lpm_abort();
+		} else {
+			lpm_seq_trace(0x4);
+		}
 
 		save_main_pll();
-		lpm_seq_trace(0x50);
+		lpm_seq_trace(0x5);
 
 		disable_main_pll();
-		lpm_seq_trace(0x60);
+		lpm_seq_trace(0x6);
 
 		/* configure the pmic input */
 		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + PMCTRL_SYS, 0x0U);
-		lpm_seq_trace(0x70);
+		lpm_seq_trace(0x7);
 		dsb();
 		isb();
 
@@ -381,29 +394,46 @@ __wkupsramsuspendentry void k3_lpm_stub_entry(uint32_t mode)
 
 	} else if (mode == 0) {
 
-		/* Wait for a53_1 to turn off  */
-		lpm_wait_for_secondary_core_down();
-		lpm_seq_trace(0x10);
+		/* Wait for a53_1 to turn off */
+		if (lpm_wait_for_secondary_core_down() == false) {
+			lpm_seq_trace_fail(0x1);
+			lpm_abort();
+		} else {
+			lpm_seq_trace(0x1);
+		}
 
 		/* Keep the USB LPSCs off*/
-		save_and_disable_usb_lpsc();
-		lpm_seq_trace(0x11);
+		if (save_and_disable_usb_lpsc() != 0) {
+			lpm_seq_trace_fail(0x8);
+			lpm_abort();
+		} else {
+			lpm_seq_trace(0x8);
+		}
 
 		save_main_pll();
-		lpm_seq_trace(0x20);
+		lpm_seq_trace(0x5);
 
-		save_ddr_reg_configs();
-		lpm_seq_trace(0x30);
+		if (save_ddr_reg_configs() != 0) {
+			lpm_seq_trace_fail(0x9);
+			lpm_abort();
+		} else {
+			lpm_seq_trace(0x9);
+		}
 
-		disable_ddr_lpsc();
-		lpm_seq_trace(0x40);
+		/*	Disable the LPSCs for DDR */ 
+		if (disable_ddr_lpsc() != 0) {
+			lpm_seq_trace_fail(0x4);
+			lpm_abort();
+		} else {
+			lpm_seq_trace(0x4);
+		}
 
 		disable_main_pll();
-		lpm_seq_trace(0x50);
+		lpm_seq_trace(0x6);
 
 		dsb();
 		isb();
-		lpm_seq_trace(0x60);
+		lpm_seq_trace(0xA);
 
 		for (;;) {
 			wfi();
@@ -512,24 +542,40 @@ __wkupsramfunc void mailbox_send_message(void)
 
 __wkupsramfunc void k3_lpm_resume_c(void)
 {
-	lpm_seq_trace(0x70);
-	restore_main_pll();
+	if (restore_main_pll() != 0) {
+		lpm_seq_trace_fail(0xB);
+		lpm_abort();
+	} else {
+		lpm_seq_trace(0xB);
+	}
 
-	lpm_seq_trace(0x80);
-	enable_ddr_lpsc();
+	if (enable_ddr_lpsc() != 0) {
+		lpm_seq_trace_fail(0xC);
+		lpm_abort();
+	} else {
+		lpm_seq_trace(0xC);
+	}
 
-	lpm_seq_trace(0x90);
-	restore_ddr_reg_configs();
+	if (restore_ddr_reg_configs() != 0) {
+		lpm_seq_trace_fail(0xD);
+		lpm_abort();
+	} else {
+		lpm_seq_trace(0xD);
+	}
 
-	lpm_seq_trace(0x91);
-	restore_usb_lpsc();
+	if (restore_usb_lpsc() != 0) { 
+		lpm_seq_trace_fail(0xE);
+		lpm_abort();
+	} else {
+		lpm_seq_trace(0xE);
+	}
 
-	lpm_seq_trace(0xA0);
 	mailbox_send_message();
+	lpm_seq_trace(0xF);
 
 	for (;;) {
 		wfi();
-		lpm_seq_trace(0xB0);
+		lpm_seq_trace(0x10);
 	}
 }
 
