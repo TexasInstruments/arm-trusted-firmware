@@ -128,6 +128,13 @@ license text is included in those source files.
    -  ``tools/memory/memory/mapsummary.py``
    -  ``tools/memory/memory/mapsummary_flamegraph.hmtl``
 
+- Some source files originating from the `CCAN`_ project.
+  These files are licensed under the CC0, which allows to re-license them
+  to BSD-3-Clause. These file are re-licensed from CC0 to BSD-3-Clause.
+  These files are:
+
+   -  ``plat/ti/k3low/common/drivers/pm/include/lib/container_of.h``
+
 .. _FreeBSD: http://www.freebsd.org
 .. _Linux MIT license: https://raw.githubusercontent.com/torvalds/linux/master/LICENSES/preferred/MIT
 .. _SCC: http://www.simple-cc.org/
@@ -136,3 +143,5 @@ license text is included in those source files.
 .. _pydevicetree: https://pypi.org/project/pydevicetree/
 .. _edk2: https://github.com/tianocore/edk2
 .. _mbed OS: https://github.com/ARMmbed/mbed-os/
+.. _CCAN: https://git.ozlabs.org/?p=ccan
+.. _CC0: https://git.ozlabs.org/?p=ccan;a=blob;f=licenses/CC0;hb=89ab9bee3b2e600bb82cf2c0c9d8291825370888
