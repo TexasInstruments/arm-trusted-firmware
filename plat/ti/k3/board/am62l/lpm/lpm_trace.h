@@ -8,6 +8,7 @@
 #define __LPM_TRACE_H__
 
 #include <plat/common/platform.h>
+#include <common/debug.h>
 
 /**
  * \brief Outputs uint32_t trace debug value to configured trace destinations.
@@ -23,20 +24,30 @@ __wkupsramfunc void lpm_trace_debug(uint32_t value);
 	#define TRACE_PM_ACTION_LPM_SEQUENCE		0x30U
 	#define TRACE_DEBUG_ACTION_SHIFT		22U
 	#define TRACE_PM_ACTION_FAIL			0x40U
-	#define lpm_seq_trace(step) lpm_trace_debug((TRACE_DEBUG_CHANNEL_LPM << TRACE_DEBUG_DOMAIN_SHIFT) \
+
+	#if LOG_LEVEL >= LOG_LEVEL_INFO
+		#define lpm_seq_trace(step) lpm_trace_debug((TRACE_DEBUG_CHANNEL_LPM << TRACE_DEBUG_DOMAIN_SHIFT) \
 								| (((uint32_t)TRACE_PM_ACTION_LPM_SEQUENCE) << TRACE_DEBUG_ACTION_SHIFT) \
 								| (((uint32_t)step) << TRACE_PM_ACTION_LPM_SEQ_SHIFT)			\
 								| (0U))
 
-	#define lpm_seq_trace_fail(step) lpm_trace_debug((TRACE_DEBUG_CHANNEL_LPM << TRACE_DEBUG_DOMAIN_SHIFT) \
-								| (((uint32_t)TRACE_PM_ACTION_LPM_SEQUENCE | TRACE_PM_ACTION_FAIL) << TRACE_DEBUG_ACTION_SHIFT)  \
-								| (((uint32_t)step) << TRACE_PM_ACTION_LPM_SEQ_SHIFT)		     \
-								| (0U))
-
-	#define lpm_seq_trace_val(step, val) lpm_trace_debug((TRACE_DEBUG_CHANNEL_LPM << TRACE_DEBUG_DOMAIN_SHIFT) \
+		#define lpm_seq_trace_val(step, val) lpm_trace_debug((TRACE_DEBUG_CHANNEL_LPM << TRACE_DEBUG_DOMAIN_SHIFT) \
 								| (((uint32_t)TRACE_PM_ACTION_LPM_SEQUENCE) << TRACE_DEBUG_ACTION_SHIFT)  \
 								| (((uint32_t)step) << TRACE_PM_ACTION_LPM_SEQ_SHIFT) \
 								| (val))
+	#else
+		#define lpm_seq_trace(step)
+		#define lpm_seq_trace_val(step, val)
+	#endif
+
+	#if LOG_LEVEL >= LOG_LEVEL_ERROR
+		#define lpm_seq_trace_fail(step) lpm_trace_debug((TRACE_DEBUG_CHANNEL_LPM << TRACE_DEBUG_DOMAIN_SHIFT) \
+								| (((uint32_t)TRACE_PM_ACTION_LPM_SEQUENCE | TRACE_PM_ACTION_FAIL) << TRACE_DEBUG_ACTION_SHIFT)  \
+								| (((uint32_t)step) << TRACE_PM_ACTION_LPM_SEQ_SHIFT)		     \
+								| (0U))
+	#else
+		#define lpm_seq_trace_fail(step)
+	#endif
 #else
 	#define lpm_seq_trace(step)
 	#define lpm_seq_trace_fail(step)
