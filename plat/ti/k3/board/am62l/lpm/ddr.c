@@ -44,9 +44,12 @@
 /* Register block core (PHY_1280-PHY_1405) offset and total */
 #define DDRSS_PHY_CORE_REGISTER_BLOCK_OFFS		0x5400U
 #define NUM_DDR_PHY_REG					126U
+#define DDRSS_PHY_CORE_REGISTER_1281_POS		0x1U
+#define DDRSS_PHY_CORE_REGISTER_1281_MULTICAST_EN	BIT(8)
+#define DDRSS_PHY_CORE_REGISTER_1281_FREQ_SEL_INDEX	BIT(16)
 #define NUM_ALL_PHY_REG					(NUM_DDR_DATA_0_REG + NUM_DDR_DATA_1_REG + NUM_DDR_ADDR_0_REG \
 							+ NUM_DDR_ADDR_1_REG + NUM_DDR_ADDR_2_REG + NUM_DDR_PHY_REG)
-#define NUM_ALL_DDR_REG					(NUM_DDR_CTL_REG + NUM_DDR_PI_REG + NUM_ALL_PHY_REG)
+#define NUM_ALL_DDR_REG					(NUM_DDR_CTL_REG + NUM_DDR_PI_REG + (NUM_ALL_PHY_REG << 1U))
 #define LP_MODE_LONG_SELF_REFRESH			0x31U
 #define LP_MODE_LONG_SELF_REFRESH_PHY_CTRL		0x51U
 #define LP_MODE_LONG_SELF_REFRESH_EXIT			0x2U
@@ -62,6 +65,8 @@
 #define DFS_INT_SW_DONE					BIT(5)	/* SW DFS completed */
 #define DFS_INT_ERROR_MASK				(DFS_INT_HW_IGNORED | DFS_INT_HW_TIMEOUT | \
 							 DFS_INT_SW_IGNORED | DFS_INT_SW_TIMEOUT)
+#define DDR_MEM_ACTIVE_FREQ_SHIFT			8U
+#define DDR_MEM_ACTIVE_FREQ_MASK			0x1FU
 
 /* WKUP CTRL MMR Base and register configuration values */
 #define WKUP_CTRL_MMR_SEC_4_BASE			(0x43040000UL)
@@ -92,6 +97,7 @@ typedef struct emif_handle_s {
 
 __wkupsramdata emif_handle_t Emifhandle;
 __wkupsramdata uint32_t ddrss_save_restore[NUM_ALL_DDR_REG];
+__wkupsramdata bool ddrss_is_fsp_supported;
 
 /* poll_for_init_completion - Sub-routine to poll for init completion */
 __wkupsramfunc void poll_for_init_completion(struct emif_handle_s *h)
@@ -370,6 +376,7 @@ __wkupsramfunc void start_PI_CTL_init(struct emif_handle_s *h)
 __wkupsramfunc void save_ddr_registers(struct emif_handle_s *h)
 {
 	int i, j;
+	uint8_t current_freq_set;
 
 	/* DDRSS Memory Base */
 	uint32_t DDR_CTL_REG_BASE = h->ctl_cfg_base_addr;
@@ -381,6 +388,13 @@ __wkupsramfunc void save_ddr_registers(struct emif_handle_s *h)
 	uint32_t DDR_PHY_ADDR_SLICE_2_REG_BASE = (h->ctl_cfg_base_addr) + DDRSS_ADDRESS_SLICE_2_REGISTER_BLOCK_OFFS;
 	uint32_t DDR_PHY_CORE_REG_BASE = (h->ctl_cfg_base_addr) + DDRSS_PHY_CORE_REGISTER_BLOCK_OFFS;
 
+	ddrss_is_fsp_supported = 0;
+
+	/* Update the PI_INIT_WORK_FREQ and INIT_FREQ on the basis of current frequency set */
+	current_freq_set = ((mmio_read_32(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(153))) >> DDR_MEM_ACTIVE_FREQ_SHIFT) & DDR_MEM_ACTIVE_FREQ_MASK;
+	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(11), current_freq_set, 5, 0);
+	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_CTL_(178), current_freq_set, 2, 0);
+
 	j = 0;
 	for (i = 0; i < NUM_DDR_CTL_REG; i++, j++) {
 		ddrss_save_restore[j] = mmio_read_32(DDR_CTL_REG_BASE + i * 4);
@@ -388,6 +402,7 @@ __wkupsramfunc void save_ddr_registers(struct emif_handle_s *h)
 	for (i = 0; i < NUM_DDR_PI_REG; i++, j++) {
 		ddrss_save_restore[j] = mmio_read_32(DDR_PI_REG_BASE + i * 4);
 	}
+	/* Save the current operating frequency register set (set 2) */
 	for (i = 0; i < NUM_DDR_DATA_0_REG; i++, j++) {
 		ddrss_save_restore[j] = mmio_read_32(DDR_PHY_DATA_SLICE_0_REG_BASE + i * 4);
 	}
@@ -403,8 +418,44 @@ __wkupsramfunc void save_ddr_registers(struct emif_handle_s *h)
 	for (i = 0; i < NUM_DDR_ADDR_2_REG; i++, j++) {
 		ddrss_save_restore[j] = mmio_read_32(DDR_PHY_ADDR_SLICE_2_REG_BASE + i * 4);
 	}
+	/* Multicast will be disabled if multiple FSPs are configured */
+	if (((mmio_read_32(DDR_CTL_REG_BASE + CTLCFG_DENALI_PHY_(1281))) & BIT(8)) == 0U) {
+		/* Set the flag to indicate that FSP is supported */
+		ddrss_is_fsp_supported = 1;
+	}
 	for (i = 0; i < NUM_DDR_PHY_REG; i++, j++) {
 		ddrss_save_restore[j] = mmio_read_32(DDR_PHY_CORE_REG_BASE + i * 4);
+	}
+
+	if (ddrss_is_fsp_supported == 1) {
+
+		/* Write phy_freq_sel_index = 1 so that second frequency set can be saved */
+		mmio_write_32(DDR_CTL_REG_BASE + CTLCFG_DENALI_PHY_(1281), BIT(16));
+
+		/* Save the second register set */
+		for (i = 0; i < NUM_DDR_DATA_0_REG; i++, j++) {
+			ddrss_save_restore[j] = mmio_read_32(DDR_PHY_DATA_SLICE_0_REG_BASE + i * 4);
+		}
+		for (i = 0; i < NUM_DDR_DATA_1_REG; i++, j++) {
+			ddrss_save_restore[j] = mmio_read_32(DDR_PHY_DATA_SLICE_1_REG_BASE + i * 4);
+		}
+		for (i = 0; i < NUM_DDR_ADDR_0_REG; i++, j++) {
+			ddrss_save_restore[j] = mmio_read_32(DDR_PHY_ADDR_SLICE_0_REG_BASE + i * 4);
+		}
+		for (i = 0; i < NUM_DDR_ADDR_1_REG; i++, j++) {
+			ddrss_save_restore[j] = mmio_read_32(DDR_PHY_ADDR_SLICE_1_REG_BASE + i * 4);
+		}
+		for (i = 0; i < NUM_DDR_ADDR_2_REG; i++, j++) {
+			ddrss_save_restore[j] = mmio_read_32(DDR_PHY_ADDR_SLICE_2_REG_BASE + i * 4);
+		}
+		/* Save the DDR PHY set with correct frequency select index */
+		for (i = 0; i < NUM_DDR_PHY_REG; i++, j++) {
+			if (i == DDRSS_PHY_CORE_REGISTER_1281_POS) {
+				ddrss_save_restore[j] = DDRSS_PHY_CORE_REGISTER_1281_FREQ_SEL_INDEX | DDRSS_PHY_CORE_REGISTER_1281_MULTICAST_EN;
+			} else {
+				ddrss_save_restore[j] = mmio_read_32(DDR_PHY_CORE_REG_BASE + i * 4);
+			}
+		}
 	}
 }
 
@@ -434,6 +485,39 @@ __wkupsramfunc void restore_ddr_registers(struct emif_handle_s *h)
 	for (int i = 1; i < NUM_DDR_PI_REG; i++, j++) {
 		mmio_write_32(DDR_PI_REG_BASE + i * 4, ddrss_save_restore[j]);
 	}
+
+	/* Restore the second frequency set conditionally */
+	if (ddrss_is_fsp_supported == 1) {
+		/* Increment the j to get location where the second set was saved */
+		j = j + NUM_ALL_PHY_REG;
+
+		for (int i = 0; i < NUM_DDR_DATA_0_REG; i++, j++) {
+			mmio_write_32(DDR_PHY_DATA_SLICE_0_REG_BASE + i * 4, ddrss_save_restore[j]);
+		}
+		for (int i = 0; i < NUM_DDR_DATA_1_REG; i++, j++) {
+			mmio_write_32(DDR_PHY_DATA_SLICE_1_REG_BASE + i * 4, ddrss_save_restore[j]);
+		}
+		for (int i = 0; i < NUM_DDR_ADDR_0_REG; i++, j++) {
+			mmio_write_32(DDR_PHY_ADDR_SLICE_0_REG_BASE + i * 4, ddrss_save_restore[j]);
+		}
+		for (int i = 0; i < NUM_DDR_ADDR_1_REG; i++, j++) {
+			mmio_write_32(DDR_PHY_ADDR_SLICE_1_REG_BASE + i * 4, ddrss_save_restore[j]);
+		}
+		for (int i = 0; i < NUM_DDR_ADDR_2_REG; i++, j++) {
+			mmio_write_32(DDR_PHY_ADDR_SLICE_2_REG_BASE + i * 4, ddrss_save_restore[j]);
+		}
+		for (int i = 0; i < NUM_DDR_PHY_REG; i++, j++) {
+			mmio_write_32(DDR_PHY_CORE_REG_BASE + i * 4, ddrss_save_restore[j]);
+		}
+
+		/* Disable multicast to save another set */
+		mmio_write_32(DDR_CTL_REG_BASE + CTLCFG_DENALI_PHY_(1281), 0U);
+
+		/* Adjust the index of j to point to the first register set */
+		j = j - (NUM_ALL_PHY_REG << 1);
+	}
+
+	/* Restore the first frequency register set */
 	for (int i = 0; i < NUM_DDR_DATA_0_REG; i++, j++) {
 		mmio_write_32(DDR_PHY_DATA_SLICE_0_REG_BASE + i * 4, ddrss_save_restore[j]);
 	}
