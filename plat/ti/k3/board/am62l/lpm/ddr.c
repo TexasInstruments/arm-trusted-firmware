@@ -51,17 +51,39 @@
 #define LP_MODE_LONG_SELF_REFRESH_PHY_CTRL		0x51U
 #define LP_MODE_LONG_SELF_REFRESH_EXIT			0x2U
 #define LPDDR4_DRAM_CLASS_REG_VALUE			0xBU
+#define CTL_BUSY_BIT					BIT(0)
+#define INT_STATUS_DFS_OFFSET				16U
+/* DFS (Dynamic Frequency Scaling) interrupt status bits in CTL_342 register */
+#define DFS_INT_HW_IGNORED				BIT(0)	/* HW DFS request ignored */
+#define DFS_INT_HW_TIMEOUT				BIT(1)	/* HW DFS timeout error */
+#define DFS_INT_HW_DONE					BIT(2)	/* HW DFS completed */
+#define DFS_INT_SW_IGNORED				BIT(3)	/* SW DFS request ignored */
+#define DFS_INT_SW_TIMEOUT				BIT(4)	/* SW DFS timeout error */
+#define DFS_INT_SW_DONE					BIT(5)	/* SW DFS completed */
+#define DFS_INT_ERROR_MASK				(DFS_INT_HW_IGNORED | DFS_INT_HW_TIMEOUT | \
+							 DFS_INT_SW_IGNORED | DFS_INT_SW_TIMEOUT)
 
 /* WKUP CTRL MMR Base and register configuration values */
 #define WKUP_CTRL_MMR_SEC_4_BASE			(0x43040000UL)
 #define CHNG_DDR4_FSP_REQ				(0x0U)
+#define CHNG_DDR4_FSP_REQ_REQ				BIT(8)
+#define CHNG_DDR4_FSP_REQ_REQ_TYPE			(0x0U)
 #define CHNG_DDR4_FSP_ACK				(0x4U)
+#define CHNG_DDR4_FSP_ACK_ACK				BIT(7)
+#define CHNG_DDR4_FSP_ACK_ERROR				BIT(0)
 #define DDR4_FSP_CLKCHNG_REQ				(0x80U)
+#define DDR4_FSP_CLKCHNG_REQ_REQ			BIT(7)
+#define DDR4_FSP_CLKCHNG_REQ_REQ_TYPE_MASK		(3U)
 #define DDR4_FSP_CLKCHNG_ACK				(0x84U)
+#define DDR4_FSP_CLKCHNG_ACK_ACK			BIT(0)
 #define DDR32SS_PMCTRL					(0x1000U)
 
 /* MAIN PLL MMR Base */
 #define MAIN_PLL_MMR_BASE				(0x04060000UL)
+
+#define TIMEOUT_VALUE					10000000U
+
+#define CORE_DATA_BARRIER				__asm volatile(" dsb sy")
 
 typedef struct emif_handle_s {
 	uint64_t		   ss_cfg_base_addr;
@@ -94,6 +116,138 @@ __wkupsramfunc void write_mmr_field(uint32_t mmr_address, uint32_t field_value, 
 	val &= mask;
 	val |= (field_value << leftshift);
 	mmio_write_32(mmr_address, val);
+}
+
+/**
+ * @brief Execute DDR Frequency Set Point (FSP) change sequence
+ *
+ * This function performs a complete hardware handshake sequence to change the
+ * DDR operating frequency by switching to a different FSP. The sequence involves
+ * coordinating between the DDR controller, PLL, and WKUP control registers.
+ *
+ * @param fsp_point Target FSP to switch to (0, 1, or 2)
+ *
+ * @return 0 on success, negative error code on failure:
+ *         -1: Timeout waiting for controller busy to clear
+ *         -2: Timeout waiting for FSP clock change request
+ *         -3: Invalid FSP request type
+ *         -4: Timeout waiting for clock change request to clear
+ *         -5: Timeout waiting for DDR FSP acknowledgment
+ *         -6: DDR FSP acknowledgment error bit set
+ *         -7: Timeout waiting for DFS interrupt status
+ *         -8: DFS operation error (HW/SW ignored or timeout)
+ */
+__wkupsramfunc static int32_t execute_ddr_fsp_seq(uint8_t fsp_point)
+{
+	uint32_t req, req_type, timeout, int_status;
+
+	/* Wait for controller busy signal to be de-asserted */
+	timeout = TIMEOUT_VALUE;
+	while (((mmio_read_32(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(330)) & CTL_BUSY_BIT) == CTL_BUSY_BIT) && (timeout > 0U)) {
+		timeout--;
+	}
+	if (timeout == 0U) {
+		return -1;
+	}
+
+	/* Set valid data for FSP points to initiate DFS request */
+	write_mmr_field(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(276), 1U, 1U, 24U);
+	write_mmr_field(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(277), 1U, 1U, 8U);
+	write_mmr_field(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(277), 1U, 1U, 0U);
+
+	/* Set the request type in FSP request register */
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_REQ), fsp_point);
+	CORE_DATA_BARRIER;
+	/* Initiate the request in FSP request register */
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_REQ), fsp_point | CHNG_DDR4_FSP_REQ_REQ);
+	CORE_DATA_BARRIER;
+
+	/* Wait for the request to be asserted in clock change request register */
+	timeout = TIMEOUT_VALUE;
+	req = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_REQ)) & DDR4_FSP_CLKCHNG_REQ_REQ);
+	while ((req != DDR4_FSP_CLKCHNG_REQ_REQ) && (timeout > 0U)) {
+		req = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_REQ)) & DDR4_FSP_CLKCHNG_REQ_REQ);
+		timeout--;
+	}
+	if (timeout == 0U) {
+		return -2;
+	}
+
+	/* Change the PLL Frequency as per requested fsp point */
+	req_type = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_REQ)) & DDR4_FSP_CLKCHNG_REQ_REQ_TYPE_MASK);
+	if (req_type == 0U) {
+		write_mmr_field((MAIN_PLL_MMR_BASE + (0U * 0x1000U) + ((2U * 0x4U) + 0x80U)), 0x4FU, 7U, 0U);
+	} else if (req_type == 1U) {
+		write_mmr_field((MAIN_PLL_MMR_BASE + (0U * 0x1000U) + ((2U * 0x4U) + 0x80U)), 0x9U, 7U, 0U);
+	} else if (req_type == 2U) {
+		write_mmr_field((MAIN_PLL_MMR_BASE + (0U * 0x1000U) + ((2U * 0x4U) + 0x80U)), 0x4U, 7U, 0U);
+	} else {
+		return -3;
+	}
+	CORE_DATA_BARRIER;
+
+	/* Set the FSP ACK bit */
+	mmio_write_32(((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_ACK)), DDR4_FSP_CLKCHNG_ACK_ACK);
+	CORE_DATA_BARRIER;
+
+	/* Wait for request to go away */
+	timeout = TIMEOUT_VALUE;
+	req = (mmio_read_32(WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_REQ)) & DDR4_FSP_CLKCHNG_REQ_REQ;
+	while ((req == DDR4_FSP_CLKCHNG_REQ_REQ)  && (timeout > 0U)) {
+		req = (mmio_read_32(WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_REQ)) & DDR4_FSP_CLKCHNG_REQ_REQ;
+		timeout--;
+	}
+	if (timeout == 0U) {
+		return -4;
+	}
+
+	/* Clear the ACK bit */
+	mmio_write_32(((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_ACK)), 0x0U);
+	CORE_DATA_BARRIER;
+
+	/* Wait for DDR to acknowledge the software initiated FSP request */
+	timeout = TIMEOUT_VALUE;
+	req = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_ACK)) & CHNG_DDR4_FSP_ACK_ACK);
+	while ((req == 0x0U) && (timeout > 0U)) {
+		req = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_ACK)) & CHNG_DDR4_FSP_ACK_ACK);
+		timeout--;
+	}
+	if (timeout == 0U) {
+		return -5;
+	}
+
+	/* Read the error bit */
+	if ((mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_ACK)) & CHNG_DDR4_FSP_ACK_ERROR) != 0U) {
+		return -6;
+	}
+
+	/* De assert the software initiated FSP request */
+	req = mmio_read_32(WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_REQ);
+	req &= ~CHNG_DDR4_FSP_REQ_REQ;
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_REQ), req);
+
+	CORE_DATA_BARRIER;
+
+	/* Check the status of interrupts in controller related to frequency scaling */
+	timeout = TIMEOUT_VALUE;
+	int_status = mmio_read_32(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(342)) >> INT_STATUS_DFS_OFFSET;
+	while ((int_status == 0U) && (timeout > 0U)) {
+		int_status = mmio_read_32(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(342)) >> INT_STATUS_DFS_OFFSET;
+		timeout--;
+	}
+	if (timeout == 0U) {
+		return -7;
+	}
+
+	/* Check the status of freq change and acknowledge all interrupts */
+	mmio_write_32((DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(350)), int_status);
+
+	/* Check if any error occurred and return failure */
+	if ((int_status & DFS_INT_ERROR_MASK) != 0U) {
+		return -8;
+	}
+
+	return 0;
 }
 
 __wkupsramfunc void configure_sdram_region_idx(struct emif_handle_s *h, uint32_t sdram_idx, uint32_t region_idx)
@@ -153,43 +307,18 @@ __wkupsramfunc void put_ddr_in_sr(bool enable)
 
 __wkupsramfunc int32_t put_ddr_in_rtc_lpm(void)
 {
-
-	uint32_t req, req_type;
 	uint32_t lp_status = 0U;
+	int32_t ret = 0;
 
 	/* disable auto entry / exit */
 	write_mmr_field(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(167), 0U, 4U, 16U);
 	write_mmr_field(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(167), 0U, 4U, 24U);
-	write_mmr_field(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(276), 1U, 1U, 24U);
-	write_mmr_field(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(277), 1U, 1U, 8U);
-	write_mmr_field((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_REQ), 0x0U, 2U, 0U);
-	write_mmr_field((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_REQ), 0x1U, 1U, 8U);
-	req = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_REQ)) & 0x80U);
-	while (req == 0x0U) {
-		req = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_REQ)) & 0x80U);
+
+	ret = execute_ddr_fsp_seq(0);
+	if (ret != 0) {
+		return ret;
 	}
-	req_type = (req & 0x03U);
-	if (req_type == 0U) {
-		write_mmr_field((MAIN_PLL_MMR_BASE + (0U * 0x1000U) + ((2U * 0x4U) + 0x80U)), 0x4FU, 7U, 0U);
-	} else {
-		return -1;
-	}
-	mmio_write_32(((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_ACK)), 0x1U);
-	while (((mmio_read_32(((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_REQ)))) & 0x80U) == 0x80U) {
-	}
-	mmio_write_32(((WKUP_CTRL_MMR_SEC_4_BASE + DDR4_FSP_CLKCHNG_ACK)), 0x0U);
-	req = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_ACK)) & 0x80U);
-	while (req == 0x0U) {
-		req = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_ACK)) & 0x80U);
-	}
-	req_type = (mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_ACK)) & 0x01U);
-	if (req_type == 0U) {
-	} else {
-		return -2;
-	}
-	req = mmio_read_32(WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_REQ);
-	req &= ~0x100U;
-	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + CHNG_DDR4_FSP_REQ), req);
+
 	/* Program Self Refresh mode */
 	write_mmr_field(DDRSS0_CTRL_BASE + CTLCFG_DENALI_CTL_(158), LP_MODE_LONG_SELF_REFRESH, 7U, 8U);
 	/* Poll for Self Refresh Mode change */
