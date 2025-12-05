@@ -20,17 +20,41 @@
 #define FW_WILDCARD_PRIVID      0xc3
 #define FW_NON_SECURE           GENMASK_32(15, 0)
 
+/* Firewall IDs */
+#define DDR_FWL_ID                      1U
+#define OSPI_FWL_ID                     97U
+#define ADC_FWL_ID                      160U
+#define MCASP_FWL_ID                    160U
+
+/* Firewall Regions */
+#define DDR_FWL_REGION                  1U
+#define OSPI_FWL_REGION                 2U
+#define ADC_FWL_REGION                  1U
+#define MCASP_FWL_REGION                2U
+
+/* Firewall Start Addresses */
+#define DDR_START_ADDR                  0x80a00000ULL
+#define OSPI_START_ADDR                 0x500000000ULL
+#define ADC_START_ADDR                  0x28001000ULL
+#define MCASP_START_ADDR                0x02b00000ULL
+
+/* Firewall End Addresses */
+#define DDR_END_ADDR                    0x100000000ULL
+#define OSPI_END_ADDR                   0x5ffffffffULL
+#define ADC_END_ADDR                    0x280013ffULL
+#define MCASP_END_ADDR                  0x02b01fffULL
+
 static struct fwl_data {
 	uint16_t fwl_id;
 	uint16_t fwl_region;
 	uint64_t start_address;
 	uint64_t end_address;
 } const fwls[] = {
-	{1, 1, 0x80a00000, 0x100000000},	/* DDR. Start addr is BL32 base + sizeof(OP-TEE), */
+	{DDR_FWL_ID, DDR_FWL_REGION, DDR_START_ADDR, DDR_END_ADDR},	/* DDR. Start addr is BL32 base + sizeof(OP-TEE), */
 						/* end addr is +2GB from start of DDR */
-	{97, 2, 0x500000000, 0x5ffffffff},	/* OSPI */
-	{160, 1, 0x28001000, 0x280013ff},	/* ADC */
-	{160, 2, 0x02b00000, 0x02b01fff},	/* MCASP */
+	{OSPI_FWL_ID, OSPI_FWL_REGION, OSPI_START_ADDR, OSPI_END_ADDR},	/* OSPI */
+	{ADC_FWL_ID, ADC_FWL_REGION, ADC_START_ADDR, ADC_END_ADDR},	/* ADC */
+	{MCASP_FWL_ID, MCASP_FWL_REGION, MCASP_START_ADDR, MCASP_END_ADDR},	/* MCASP */
 };
 
 /* Table of regions to map using the MMU */
@@ -85,7 +109,7 @@ static enum k3_device_type get_device_type(void)
 	uint32_t sys_sub_type = (sys_status & SYS_STATUS_SUB_TYPE_MASK) >>
 			SYS_STATUS_SUB_TYPE_SHIFT;
 
-	printf("%s %x\n", __func__, sys_status);
+	INFO("System Status: 0x%x\n", sys_status);
 
 	switch (sys_dev_type) {
 	case SYS_STATUS_DEV_TYPE_GP:
