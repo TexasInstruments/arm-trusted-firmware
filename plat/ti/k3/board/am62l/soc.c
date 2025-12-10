@@ -15,22 +15,30 @@
 
 #define TFA_HOST_ID		10U
 #define A53_PRIV_ID		4U
-#define FW_ENABLE_REGION        0x0a
-#define FW_CACHE_MODE		BIT(9)
-#define FW_WILDCARD_PRIVID      0xc3
-#define FW_NON_SECURE           GENMASK_32(15, 0)
+#define FW_BACKGROUND_BIT	8U
+
+/* Firewall IDs */
+#define DDR_FWL_ID		1U
+#define OSPI_FWL_ID		97U
+#define ADC_MCASP_FWL_ID	160U
+
+/* Number of firewall regions */
+#define DDR_FWL_NUM_REGIONS		16U
+#define OSPI_FWL_NUM_REGIONS		8U
+#define ADC_MCASP_FWL_NUM_REGIONS 	16U
+
+enum k3_fwl_region_type {
+	K3_FWL_REGION_FOREGROUND = 0,
+	K3_FWL_REGION_BACKGROUND = BIT(FW_BACKGROUND_BIT),
+};
 
 static struct fwl_data {
 	uint16_t fwl_id;
-	uint16_t fwl_region;
-	uint64_t start_address;
-	uint64_t end_address;
+	uint8_t num_regions;
 } const fwls[] = {
-	{1, 1, 0x80a00000, 0x100000000},	/* DDR. Start addr is BL32 base + sizeof(OP-TEE), */
-						/* end addr is +2GB from start of DDR */
-	{97, 2, 0x500000000, 0x5ffffffff},	/* OSPI */
-	{160, 1, 0x28001000, 0x280013ff},	/* ADC */
-	{160, 2, 0x02b00000, 0x02b01fff},	/* MCASP */
+	{DDR_FWL_ID, DDR_FWL_NUM_REGIONS},	/* DDR */
+	{OSPI_FWL_ID, OSPI_FWL_NUM_REGIONS},	/* OSPI */
+	{ADC_MCASP_FWL_ID, ADC_MCASP_FWL_NUM_REGIONS},	/* ADC and MCASP */
 };
 
 /* Table of regions to map using the MMU */
@@ -44,63 +52,45 @@ const mmap_region_t plat_k3_mmap[] = {
 	{ /* sentinel */ }
 };
 
-void update_fwl_configs(struct fwl_data fwl)
+void remove_fwl_configs(struct fwl_data fwl, enum k3_fwl_region_type fwl_type)
 {
-	int ret;
 	uint8_t owner_index = TFA_HOST_ID;
 	uint8_t owner_privid = A53_PRIV_ID;
-	uint16_t owner_permission_bits = 0xffff;
+	uint16_t owner_permission_bits = 0;
 	uint32_t control = 0;
 	uint32_t permissions[FWL_MAX_PRIVID_SLOTS] = { };
+	uint32_t n_permission_regs = FWL_MAX_PRIVID_SLOTS;
+	uint64_t start_address = 0;
+	uint64_t end_address = 0;
+	int ret = 0;
 
-	ret = ti_sci_change_fwl_owner(fwl.fwl_id, fwl.fwl_region, owner_index,
-					&owner_privid, &owner_permission_bits);
-	if (ret) {
-		ERROR("Could not change firewall owner (%d)\n", ret);
-		panic();
-	}
+	for (int i = 0; i < fwl.num_regions; i++) {
+		ret = ti_sci_change_fwl_owner(fwl.fwl_id, i, owner_index,
+					      &owner_privid, &owner_permission_bits);
+		if (ret) {
+			ERROR("Could not change firewall owner (%d)\n", ret);
+			continue;
+		}
 
-	permissions[0] = (FW_WILDCARD_PRIVID << 16) | FW_NON_SECURE;
-	permissions[1] = (FW_WILDCARD_PRIVID << 16) | FW_NON_SECURE;
-	permissions[2] = (FW_WILDCARD_PRIVID << 16) | FW_NON_SECURE;
-	control = (FW_CACHE_MODE | FW_ENABLE_REGION);
+		ret = ti_sci_get_fwl_region(fwl.fwl_id, i, n_permission_regs,
+					    &control, permissions,
+					    &start_address, &end_address);
+		if (ret) {
+			ERROR("Could not get firewall region information (%d)\n", ret);
+			continue;
+		}
 
-	ret = ti_sci_set_fwl_region(fwl.fwl_id, fwl.fwl_region, 3,
-				    control, permissions,
-				    fwl.start_address, fwl.end_address);
-	if (ret) {
-		ERROR("Could not set firewall region information (%d)\n", ret);
-		panic();
-	}
+		if (control != 0 && (control & (1 << FW_BACKGROUND_BIT)) == fwl_type) {
+			control = 0;
 
-}
-
-static enum k3_device_type get_device_type(void)
-{
-	uint32_t sys_status = mmio_read_32(K3_SEC_MGR_SYS_STATUS);
-
-	uint32_t sys_dev_type = (sys_status & SYS_STATUS_DEV_TYPE_MASK) >>
-			SYS_STATUS_DEV_TYPE_SHIFT;
-
-	uint32_t sys_sub_type = (sys_status & SYS_STATUS_SUB_TYPE_MASK) >>
-			SYS_STATUS_SUB_TYPE_SHIFT;
-
-	printf("%s %x\n", __func__, sys_status);
-
-	switch (sys_dev_type) {
-	case SYS_STATUS_DEV_TYPE_GP:
-		return K3_DEVICE_TYPE_GP;
-	case SYS_STATUS_DEV_TYPE_TEST:
-		return K3_DEVICE_TYPE_TEST;
-	case SYS_STATUS_DEV_TYPE_EMU:
-		return K3_DEVICE_TYPE_EMU;
-	case SYS_STATUS_DEV_TYPE_HS:
-		if (sys_sub_type == SYS_STATUS_SUB_TYPE_VAL_FS)
-			return K3_DEVICE_TYPE_HS_FS;
-		else
-			return K3_DEVICE_TYPE_HS_SE;
-	default:
-		return K3_DEVICE_TYPE_BAD;
+			ret = ti_sci_set_fwl_region(fwl.fwl_id, i, n_permission_regs,
+						    control, permissions,
+						    start_address, end_address);
+			if (ret) {
+				ERROR("Could not disable firewall region information (%d)\n", ret);
+				panic();
+			}
+		}
 	}
 }
 
@@ -143,10 +133,10 @@ int ti_soc_init(void)
 		return ret;
 	}
 
-	if (get_device_type() == K3_DEVICE_TYPE_HS_SE) {
-		/* Update firewall configurations */
-		for (int i = 0; i < ARRAY_SIZE(fwls); i++)
-			update_fwl_configs(fwls[i]);
+	/* Update firewall configurations */
+	for (int i = 0; i < ARRAY_SIZE(fwls); i++) {
+		remove_fwl_configs(fwls[i], K3_FWL_REGION_FOREGROUND);
+		remove_fwl_configs(fwls[i], K3_FWL_REGION_BACKGROUND);
 	}
 
 	return 0;
