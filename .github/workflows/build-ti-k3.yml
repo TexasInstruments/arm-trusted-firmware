@@ -38,6 +38,11 @@ jobs:
         echo $PATH
         echo $(pwd)
         make -j32 CROSS_COMPILE=aarch64-none-linux-gnu- PLAT=k3 TARGET_BOARD=am62l
+    - name: build AM62L badge
+      run: |
+        echo $PATH
+        echo $(pwd)
+        make -j32 CROSS_COMPILE=aarch64-none-linux-gnu- PLAT=k3 TARGET_BOARD=am62l-badge
     - name: build lite DEBUG
       run: |
         make -j32 SPD=opteed CROSS_COMPILE=aarch64-none-linux-gnu- LOG_LEVEL=60 PLAT=k3 TARGET_BOARD=lite DEBUG=1
@@ -56,6 +61,11 @@ jobs:
         echo $PATH
         echo $(pwd)
         make -j32 CROSS_COMPILE=aarch64-none-linux-gnu- PLAT=k3 TARGET_BOARD=am62l LOG_LEVEL=60 DEBUG=1 bl31 # Specifically bl31, as BL1 won't fit
+    - name: build AM62L badge DEBUG
+      run: |
+        echo $PATH
+        echo $(pwd)
+        make -j32 CROSS_COMPILE=aarch64-none-linux-gnu- PLAT=k3 TARGET_BOARD=am62l-badge LOG_LEVEL=60 DEBUG=1 bl31 # Specifically bl31, as BL1 won't fit
     - uses: actions/upload-artifact@v4
       with:
         name: ti-build-artifacts
