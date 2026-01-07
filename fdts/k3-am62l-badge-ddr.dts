@@ -11,8 +11,8 @@
 
 	memory@80000000 {
 		device_type = "memory";
-		/* 128MB */
-		reg = <0x00000000 0x80000000 0x00000000 0x8000000>;
+		/* 256MB */
+		reg = <0x00000000 0x80000000 0x00000000 0x10000000>;
 	};
 
 	memorycontroller: memorycontroller@f300000 {
