@@ -72,7 +72,8 @@ PLAT_INCLUDES		+=	\
 				-Iinclude/lib/libfdt	\
 				-I${PLAT_PATH}/board/am62l/include	\
 				-I${PLAT_PATH}/board/am62l/pm	\
-				-I${PLAT_PATH}/board/am62l/scmi
+				-I${PLAT_PATH}/board/am62l/scmi	\
+				-I${PLAT_PATH}/board/am62l/fwl
 
 K3_LPDDR4_SOURCES	+= 	\
 				${PLAT_PATH}/common/drivers/lpddr4/k3-ddrss.c \
@@ -111,3 +112,4 @@ BL31_SOURCES		+=	\
 				drivers/scmi-msg/smt.c			\
 				drivers/scmi-msg/clock.c			\
 				drivers/scmi-msg/power_domain.c		\
+				${PLAT_PATH}/board/am62l/fwl/fwl.c
