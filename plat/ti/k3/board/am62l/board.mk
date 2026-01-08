@@ -103,6 +103,7 @@ include ${PLAT_PATH}/board/am62l/lpm/lpm.mk
 
 PLAT_INCLUDES += -Iplat/ti/k3/board/${TARGET_BOARD}/pm			\
 		 -I${PLAT_PATH}/board/am62l/scmi			\
+		 -I${PLAT_PATH}/board/am62l/fwl			\
 
 BL31_SOURCES		+=	\
 				${PLAT_PATH}/common/k3_svc.c		\
@@ -112,3 +113,4 @@ BL31_SOURCES		+=	\
 				drivers/scmi-msg/smt.c			\
 				drivers/scmi-msg/clock.c			\
 				drivers/scmi-msg/power_domain.c		\
+				${PLAT_PATH}/board/am62l/fwl/fwl.c
