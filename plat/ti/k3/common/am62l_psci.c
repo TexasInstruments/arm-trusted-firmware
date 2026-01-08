@@ -12,6 +12,7 @@
 #include <devices.h>
 #include <device.h>
 #include <drivers/arm/gicv3.h>
+#include <fwl.h>
 #include <gtc.h>
 #include <k3_console.h>
 #include <k3_gicv3.h>
@@ -343,6 +344,9 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 
 static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
 {
+	/* Disable ROM configured firewalls during resume */
+	update_fwl_configs();
+
 	/* Remove the I/O isolation */
 	k3_lpm_set_io_isolation(false);
 	/* Initialize the console to provide early debug support */
