@@ -16,5 +16,8 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: ${{ env.PR_FETCH_DEPTH }}
     - name: Run checkpatch review
-      uses: webispy/checkpatch-action@v9
+      run: |
+        curl -L -o checkpatch.pl https://raw.githubusercontent.com/torvalds/linux/master/scripts/checkpatch.pl
+        chmod +x checkpatch.pl
+        git format-patch -${{ github.event.pull_request.commits }} --stdout | ./checkpatch.pl --no-tree --ignore SPELLING --ignore CONST_STRUCT -
 
