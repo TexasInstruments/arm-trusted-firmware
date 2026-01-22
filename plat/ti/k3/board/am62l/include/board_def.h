@@ -35,6 +35,7 @@
 #define K3_GTC_CFG0_BASE		        (0xa80000UL)
 #define K3_GTC_CFG1_BASE		        (0xA90000UL)
 #define K3_RTC_BASE			        (0x2b1f0000UL)
+#define WKUP_CTRL_PMCTRL_SYS                    (0x80UL)
 
 /*******************************************************************************
  * Memory layout constants
