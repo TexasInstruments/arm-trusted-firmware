@@ -16,3 +16,4 @@ K3_TI_SCI_TRANSPORT    =       ${PLAT_PATH}/common/drivers/sec_proxy/sec_proxy.c
 
 K3_PSCI_SOURCES		+=	\
 				${PLAT_PATH}/common/k3_psci.c		\
+				plat/common/plat_psci_common.c		\
