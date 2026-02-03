@@ -255,7 +255,14 @@ exit:
 	 * requested at multiple power levels. This means that the cpu
 	 * context will be preserved.
 	 */
+
+	u_register_t scr;
+	scr = read_scr_el3();
+	write_scr_el3(scr | SCR_IRQ_BIT | SCR_FIQ_BIT);
+	isb();
+	dsb();
 	wfi();
+	write_scr_el3(scr);
 
 #if ENABLE_RUNTIME_INSTRUMENTATION
 	PMF_CAPTURE_TIMESTAMP(rt_instr_svc,
