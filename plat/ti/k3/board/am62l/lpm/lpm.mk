@@ -11,4 +11,5 @@ BL31_SOURCES	+=	\
 				${PLAT_PATH}/board/am62l/lpm/lpm_trace.c	\
 				${PLAT_PATH}/board/am62l/lpm/pll_16fft_raw.c	\
 				${PLAT_PATH}/board/am62l/lpm/psc_raw.c		\
+				${PLAT_PATH}/board/am62l/lpm/standby.c		\
 				${PLAT_PATH}/board/am62l/lpm/rtc.c

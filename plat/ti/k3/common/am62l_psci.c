@@ -28,143 +28,20 @@
 #include <stdbool.h>
 #include <ti_sci.h>
 #include <ti_sci_protocol.h>
+#include <stdio.h>
+#include <drivers/delay_timer.h>
+#include <standby.h>
 
 volatile unsigned int val_mdctl;
 volatile unsigned int val_mdstat;
 volatile uint32_t am62l_lpm_state = 0;
-/*********** PROC BOOT CODE ******************/
-
-/* power domain indices */
-#define PD_MPU_CLST		4
-#define PD_MPU_CLST_CORE_0	5
-#define PD_MPU_CLST_CORE_1	6
-
-/* lpsc indices */
-#define LPSC_MAIN_MPU_CLST		38
-#define LPSC_MAIN_MPU_CLST_PBIST	39
-#define LPSC_MAIN_MPU_CLST_CORE_0	40
-#define LPSC_MAIN_MPU_CLST_CORE_1	41
-
-#define PSC_SYNCRESETDISABLE	(0x0)
-#define PSC_SYNCRESET		(0x1)
-#define PSC_DISABLE		(0x2)
-#define PSC_ENABLE		(0x3)
-#define PSC_PD_OFF		(0x0)
-#define PSC_PD_ON		(0x1)
-
-#define MAIN_PSC_BASE		0x00400000
-#define MAIN_PSC_MDCTL_BASE	0x00400A00
-#define MAIN_PSC_MDSTAT_BASE	0x00400800
-#define MAIN_PSC_PDCTL_BASE	0x00400300
-#define MAIN_PSC_PDSTAT_BASE	0x00400200
-#define MAIN_PSC_PTSTAT	(MAIN_PSC_BASE + PSC_PTSTAT)
-#define MAIN_PSC_PTCMD		(MAIN_PSC_BASE + PSC_PTCMD)
-
-#define PSC_PTCMD	0x120
-#define PSC_PTSTAT	0x128
-
-#define PSC_TIMEOUT_US  100000  /* 100ms timeout */
-
-/*
- * Sets the requested state of required module and power domain.
- * This function:
- * 1. Checks if the requested states are already set
- * 2. Waits for any ongoing power state transitions to complete
- * 3. Programs the PDCTL and MDCTL registers with the new states
- * 4. Initiates the power state transition
- * 5. Waits for the transition to complete if powering on
- * 6. Logs the before and after states for debugging
- *
- * @pd_id: Power domain ID (e.g., PD_MPU_CLST, PD_MPU_CLST_CORE_0)
- * @md_id: Module ID (e.g., LPSC_MAIN_MPU_CLST, LPSC_MAIN_MPU_CLST_CORE_0)
- * @pd_state: Target power domain state (PSC_PD_ON or PSC_PD_OFF)
- * @md_state: Target module state (PSC_ENABLE, PSC_DISABLE, PSC_SYNCRESETDISABLE, etc.)
- */
-static void __unused
-set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint32_t md_state)
-{
-	uintptr_t mdctrl_ptr, mdstat_ptr, pdctrl_ptr, pdstat_ptr;
-	volatile uint32_t mdctrl, mdstat, pdctrl, pdstat, psc_ptstat, psc_ptcmd;
-	uint64_t tick_start, timeout_ticks;
-	uint32_t ticks_per_us;
-
-	// Calculate addresses with simplified approach
-	mdctrl_ptr = MAIN_PSC_MDCTL_BASE + (4 * md_id);
-	mdstat_ptr = MAIN_PSC_MDSTAT_BASE + (4 * md_id);
-	pdctrl_ptr = MAIN_PSC_PDCTL_BASE + (4 * pd_id);
-	pdstat_ptr = MAIN_PSC_PDSTAT_BASE + (4 * pd_id);
-
-	// Use mmio_read_32 with simplified addresses
-	mdctrl = mmio_read_32(mdctrl_ptr);
-	mdstat = mmio_read_32(mdstat_ptr);
-	pdctrl = mmio_read_32(pdctrl_ptr);
-	pdstat = mmio_read_32(pdstat_ptr);
-
-	INFO("%s: before: md_id=%d, mdstat=0x%x, pdstat=0x%x\n", __func__, md_id, mdstat, pdstat);
-
-	if (((pdstat & 0x1) == pd_state) && ((mdstat & 0x1f) == md_state))
-		return;
-
-	// Calculate timeout parameters
-	ticks_per_us = plat_get_syscnt_freq2() / 1000000;
-	tick_start = (uint32_t)read_cntpct_el0();
-	timeout_ticks = PSC_TIMEOUT_US * ticks_per_us;
-
-	// wait for GOSTAT to clear
-	psc_ptstat = mmio_read_32(MAIN_PSC_PTSTAT);
-
-	while ((psc_ptstat & (0x1 << pd_id)) != 0) {
-		if (((uint32_t)read_cntpct_el0() - tick_start) > timeout_ticks) {
-			ERROR("PSC timeout waiting for initial GOSTAT to clear for pd_id %d\n",
-			      pd_id);
-			break;
-		}
-		psc_ptstat = mmio_read_32(MAIN_PSC_PTSTAT);
-	}
-
-	// Set PDCTL NEXT to new state
-	mmio_write_32(pdctrl_ptr, (pdctrl & ~(0x1)) | pd_state);
-
-	// Set MDCTL NEXT to new state
-	mmio_write_32(mdctrl_ptr, (mdctrl & ~(0x1f)) | md_state);
-
-	// Start power transition by setting PTCMD Go to 1
-	psc_ptcmd = mmio_read_32(MAIN_PSC_PTCMD);
-	psc_ptcmd |= (0x1 << pd_id);
-	mmio_write_32(MAIN_PSC_PTCMD, psc_ptcmd);
-
-	// return early in case powering off
-	// This prevents the core from timing out waiting for GOSTAT to clear
-	if (md_state == PSC_SYNCRESETDISABLE)
-		return;
-
-	// Reset timeout for second wait
-	tick_start = (uint32_t)read_cntpct_el0();
-
-	// Initial read
-	psc_ptstat = mmio_read_32(MAIN_PSC_PTSTAT);
-
-	// Wait loop with timeout
-	while ((psc_ptstat & (0x1 << pd_id)) != 0) {
-		if (((uint32_t)read_cntpct_el0() - tick_start) > timeout_ticks) {
-			ERROR("PSC timeout waiting for GOSTAT to clear for pd_id %d\n", pd_id);
-			break;
-		}
-		psc_ptstat = mmio_read_32(MAIN_PSC_PTSTAT);
-	}
-
-	//check states
-	mdstat = mmio_read_32(mdstat_ptr);
-	pdstat = mmio_read_32(pdstat_ptr);
-
-	INFO("%s: after: md_id=%d, mdstat=0x%x, pdstat=0x%x\n", __func__, md_id, mdstat, pdstat);
-}
-
-/*********** PROC BOOT CODE ENDS******************/
 
 #define CORE_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL0])
 #define CLUSTER_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL1])
 #define SYSTEM_PWR_STATE(state) ((state)->pwr_domain_state[PLAT_MAX_PWR_LVL])
+
+#define PSTATE_BITS 0xfU
+#define PSTATE_WIDTH 4
 
 #define WKUP_CTRL_MMR0_DEVICE_MANAGEMENT_BASE	(0x43050000UL)
 #define WKUP_CTRL_MMR0_DEVICE_RESET_OFFSET	(0x4000)
@@ -172,10 +49,18 @@ set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint32_t m
 uintptr_t am62l_sec_entrypoint;
 uintptr_t am62l_sec_entrypoint_glob;
 
+/*
+	state_entered - to track the state of individual cores
+	Value : 0 - RUNNING
+			1 - CORE IDLE_STATE
+			2 - LOW_LATENCY IDLE_STATE
+			3 - HIGH_LATENCY IDLE_STATE
+*/
+static uint32_t state_entered[2] = {0,0};
+
 static void am62l_cpu_standby(plat_local_state_t cpu_state)
 {
 	u_register_t scr;
-
 	scr = read_scr_el3();
 	/* Enable the Non secure interrupt to wake the CPU */
 	write_scr_el3(scr | SCR_IRQ_BIT | SCR_FIQ_BIT);
@@ -297,7 +182,7 @@ static void __dead2 am62l_system_reset(void)
 		wfi();
 }
 
-static int k3_validate_power_state(unsigned int power_state,
+static int am62l_validate_power_state(unsigned int power_state,
 				   psci_power_state_t *req_state)
 {
 	unsigned int pwr_lvl = psci_get_pstate_pwrlvl(power_state);
@@ -308,14 +193,10 @@ static int k3_validate_power_state(unsigned int power_state,
 		return PSCI_E_INVALID_PARAMS;
 
 	if (pstate == PSTATE_TYPE_STANDBY) {
-		/*
-		 * It's possible to enter standby only on power level 0
-		 * Ignore any other power level.
-		 */
-		if (pwr_lvl != MPIDR_AFFLVL0)
-			return PSCI_E_INVALID_PARAMS;
+		CORE_PWR_STATE(req_state) = (power_state & PSTATE_BITS);
+		CLUSTER_PWR_STATE(req_state) = ((power_state >> PSTATE_WIDTH * 1) & PSTATE_BITS);
+		SYSTEM_PWR_STATE(req_state) = ((power_state >> PSTATE_WIDTH * 2) & PSTATE_BITS);
 
-		CORE_PWR_STATE(req_state) = PLAT_MAX_RET_STATE;
 	} else if (pstate && PSTATE_TYPE_POWERDOWN) {
 		INFO("%s: (core %d): s2idle: power_state: 0x%x\n", __func__, core, power_state);
 		CORE_PWR_STATE(req_state) = PLAT_MAX_OFF_STATE;
@@ -324,6 +205,9 @@ static int k3_validate_power_state(unsigned int power_state,
 		// 0x2012231=Deep Sleep: comes from DT idle-state suspend param
 		am62l_lpm_state = power_state == 0x2012231 ? 0 : 6;
 	}
+#if PSCI_OS_INIT_MODE
+	req_state->last_at_pwrlvl = pwr_lvl;
+#endif
 
 	return PSCI_E_SUCCESS;
 }
@@ -331,67 +215,110 @@ static int k3_validate_power_state(unsigned int power_state,
 #ifdef K3_AM62L_LPM
 static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 {
-	unsigned int core, proc_id;
-	uint64_t  context_save_addr = 0x80A00000;
-	/*
-	 * mode=6 for RTC only + DDR and mode=0 for deepsleep
-	 */
-	uint32_t mode = am62l_lpm_state;
+	/* Entering cluster standby sequence */
+	if(CORE_PWR_STATE(target_state) == CORE_IDLE_STATE){
+		unsigned int core = plat_my_core_pos();
+		uint32_t in_standby = state_entered[1-core];
+		// saving the original state of the system before entering standby mode
+		if(!in_standby){
+			am62l_save_state();
+		}
 
-	core = plat_my_core_pos();
-	proc_id = PLAT_PROC_START_ID + core;
+		state_entered[core] = CLUSTER_PWR_STATE(target_state);
 
-	/* Prevent interrupts from spuriously waking up this cpu */
-	k3_gic_cpuif_disable();
-	k3_gic_save_context();
-	clks_suspend();
-
-	if ((mode == 0) || (mode == 6)) {
-		INFO("Started Suspend Sequence in ATF\n");
-		/* Isolate the I/Os to allow I/O Daisy chain wakeup */
-		k3_lpm_set_io_isolation(true);
-		k3_lpm_config_magic_words(mode);
-		ti_sci_prepare_sleep(mode, context_save_addr, 0);
-		INFO("sent prepare message\n");
-		k3_config_wake_sources(true);
-		ti_sci_enter_sleep(proc_id, mode, am62l_sec_entrypoint);
-		INFO("sent enter sleep message\n");
+		if(!in_standby || in_standby < state_entered[core]){
+			if(state_entered[core] == LOW_LATENCY_IDLE_STATE){
+				am62l_low_latency_standby();
+			}
+		}
+		return;
 	}
+	else if(CORE_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE){
+		unsigned int core, proc_id;
+		uint64_t  context_save_addr = 0x80A00000;
+		/*
+		* mode=6 for RTC only + DDR and mode=0 for deepsleep
+		*/
+		uint32_t mode = am62l_lpm_state;
 
-	k3_suspend_to_ram(mode);
+		core = plat_my_core_pos();
+		proc_id = PLAT_PROC_START_ID + core;
+
+		/* Prevent interrupts from spuriously waking up this cpu */
+		k3_gic_cpuif_disable();
+		k3_gic_save_context();
+		clks_suspend();
+
+		if ((mode == 0) || (mode == 6)) {
+			INFO("Started Suspend Sequence in ATF\n");
+			/* Isolate the I/Os to allow I/O Daisy chain wakeup */
+			k3_lpm_set_io_isolation(true);
+			k3_lpm_config_magic_words(mode);
+			ti_sci_prepare_sleep(mode, context_save_addr, 0);
+			INFO("sent prepare message\n");
+			k3_config_wake_sources(true);
+			ti_sci_enter_sleep(proc_id, mode, am62l_sec_entrypoint);
+			INFO("sent enter sleep message\n");
+		}
+
+		k3_suspend_to_ram(mode);
+	}
 }
 
 static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
-{
-	/* Disable ROM configured firewalls during resume */
-	update_fwl_configs();
+{	
+	/* Exiting cluster standby sequence */
+	if(CORE_PWR_STATE(target_state) == CORE_IDLE_STATE){
+		unsigned int core = plat_my_core_pos();
+		// skipping the restore if other core still in an idle state
+		if(state_entered[core] <= state_entered[1-core]){
+			state_entered[core] = 0;
+			return;
+		}
 
-	/* Remove the I/O isolation */
-	k3_lpm_set_io_isolation(false);
-	/* Initialize the console to provide early debug support */
-	k3_console_setup();
-	k3_config_wake_sources(false);
-	k3_gic_restore_context();
-	k3_gic_cpuif_enable();
-	ti_init_scmi_server();
-	k3_lpm_stub_copy_to_sram();
-	clks_resume();
+		if(state_entered[core] == LOW_LATENCY_IDLE_STATE){  // low latency standby
+			am62l_restore_state();
+		}
+		// now that both cores have exited cluster standby, we reset the state
+		state_entered[core] = 0;
+		state_entered[1-core] = 0;
 
-	/* 60 irqn = RTC */
-	gicv3_set_spi_routing(60, GICV3_IRM_ANY, 0);
-	gicv3_enable_interrupt(60, 0);
-	gicv3_set_interrupt_pending(60, 0);
-	plat_ic_raise_ns_sgi(60, 0);
+		return;
+	}	
+	else if(CORE_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE){
+		/* Disable ROM configured firewalls during resume */
+		update_fwl_configs();
+
+		/* Remove the I/O isolation */
+		k3_lpm_set_io_isolation(false);
+		/* Initialize the console to provide early debug support */
+		k3_console_setup();
+		k3_config_wake_sources(false);
+		k3_gic_restore_context();
+		k3_gic_cpuif_enable();
+		ti_init_scmi_server();
+		k3_lpm_stub_copy_to_sram();
+		clks_resume();
+
+		/* 60 irqn = RTC */
+		gicv3_set_spi_routing(60, GICV3_IRM_ANY, 0);
+		gicv3_enable_interrupt(60, 0);
+		gicv3_set_interrupt_pending(60, 0);
+		plat_ic_raise_ns_sgi(60, 0);
+	}
 }
 
 static void am62l_get_sys_suspend_power_state(psci_power_state_t *req_state)
 {
 	unsigned int i;
-
 	/* CPU & cluster off, system in retention */
 	for (i = MPIDR_AFFLVL0; i <= PLAT_MAX_PWR_LVL; i++) {
 		req_state->pwr_domain_state[i] = PLAT_MAX_OFF_STATE;
-	}
+		}
+		
+	#if PSCI_OS_INIT_MODE
+		req_state->last_at_pwrlvl = PLAT_MAX_PWR_LVL;
+	#endif
 }
 #endif
 
@@ -408,7 +335,7 @@ static plat_psci_ops_t am62l_plat_psci_ops = {
 #endif
 	.system_off = am62l_system_off,
 	.system_reset = am62l_system_reset,
-	.validate_power_state = k3_validate_power_state,
+	.validate_power_state = am62l_validate_power_state,
 };
 
 void  __aligned(16) jump_to_atf_func(void)
@@ -428,4 +355,30 @@ int plat_setup_psci_ops(uintptr_t sec_entrypoint,
 	*psci_ops = &am62l_plat_psci_ops;
 
 	return 0;
+}
+
+plat_local_state_t plat_get_target_pwr_state(unsigned int lvl,
+					     const plat_local_state_t *states,
+					     unsigned int ncpu)
+{
+	plat_local_state_t target = PLAT_MAX_OFF_STATE, temp;
+	const plat_local_state_t *st = states;
+	unsigned int n = ncpu;
+
+	assert(ncpu > 0U);
+
+	do {
+		temp = *st;
+		st++;
+		/*  The power state of the CPU STANDBY called by fast path in psci_cpu_suspend()
+			is CORE_IDLE_STATE and the power states are in an increasing order of power saved.
+			Thus the target power state for the cluster is the minimum of the power states 
+			requested by all the cores that is not CORE_IDLE_STATE.
+		*/
+		if ((temp < target) && (temp != CORE_IDLE_STATE))
+			target = temp;
+		n--;
+	} while (n > 0U);
+
+	return target;
 }
