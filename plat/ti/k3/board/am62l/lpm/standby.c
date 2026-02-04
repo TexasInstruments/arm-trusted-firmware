@@ -178,8 +178,8 @@ void am62l_restore_state()
 
     // LPSC
     for(int i=0;i<LPSC_COUNT;i++){
-        if(saved_state.lpsc_value[lpsc_id[i]]!=0){
-        	set_main_psc_state(psc_id[i],lpsc_id[i],1,saved_state.lpsc_value[lpsc_id[i]]);
+        if(saved_state.lpsc_value[i]!=0){
+        	set_main_psc_state(psc_id[i],lpsc_id[i],PSC_PD_ON,saved_state.lpsc_value[i]);
         }
     }
 
@@ -205,8 +205,8 @@ void am62l_low_latency_standby()
 
 	// change the LPSC values only if they are not already disabled
 	for(int i=0;i<LPSC_COUNT;i++){
-		if(saved_state.lpsc_value[lpsc_id[i]]!=0){
-			set_main_psc_state(psc_id[i],lpsc_id[i],1,2);
+		if(saved_state.lpsc_value[i]!=0){
+			set_main_psc_state(psc_id[i],lpsc_id[i],PSC_PD_ON,PSC_DISABLE);
 		}
 	}
 
