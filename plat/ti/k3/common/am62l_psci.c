@@ -157,8 +157,8 @@ static void __dead2 am62l_system_off(void)
 {
 	INFO("%s: Initiating system poweroff sequence\n", __func__);
 
-	/* Notify TIFS to prepare for poweroff (mode = 3 for RTC Only mode) */
-	ti_sci_prepare_sleep(0x3, 0, 0);
+	/* Notify TIFS to prepare for poweroff (mode = 7 for RTC Only mode) */
+	ti_sci_prepare_sleep(0x7, 0, 0);
 
 	/* Enter poweroff by configuring PMIC control register */
 	mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE + WKUP_CTRL_PMCTRL_SYS, 0x0U);
