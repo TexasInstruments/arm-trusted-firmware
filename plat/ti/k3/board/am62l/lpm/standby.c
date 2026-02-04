@@ -42,16 +42,17 @@
 
 #define WKUP_CTRL_MMR_CFG5_CLKGATE_CTRL0 0x43054050
 
-#define LPSC_COUNT 4
+#define LPSC_COUNT 5
 
 static unsigned int lpsc_id[] = {
 	1,  /* LPSC_main_gp_test */
 	2,  /* LPSC_main_gp_pbist0 */
 	33, /* LPSC_mainip_pbist */
 	39, /* LPSC_main_mpu_clst0_pbist */
+	55, /* LPSC_debugss */
 };
 
-static unsigned int psc_id[] = {0,0,3,4};
+static unsigned int psc_id[] = {0,0,3,4,9};
 
 struct am62l_pm_state {
     uint32_t pll_hsdiv_val[11];
@@ -176,22 +177,30 @@ void am62l_restore_state()
     // AUTO CLOCK GATING OFF
     mmio_write_32(WKUP_CTRL_MMR_CFG5_CLKGATE_CTRL0,saved_state.auto_clk_gate);
 
+    /* Restore PLL */
+    for(int i=0;i<10;i++){
+        mmio_write_32(MAIN_PLL0_HSDIVx(i), saved_state.pll_hsdiv_val[i]);
+    }
+    mmio_write_32(MAIN_PLL8_CTRL,saved_state.pll_hsdiv_val[10]);
+
     // LPSC
     for(int i=0;i<LPSC_COUNT;i++){
         if(saved_state.lpsc_value[i]!=0){
         	set_main_psc_state(psc_id[i],lpsc_id[i],PSC_PD_ON,saved_state.lpsc_value[i]);
         }
     }
-
-    /* Restore PLL */
-    for(int i=0;i<10;i++){
-        mmio_write_32(MAIN_PLL0_HSDIVx(i), saved_state.pll_hsdiv_val[i]);
-    }
-    mmio_write_32(MAIN_PLL8_CTRL,saved_state.pll_hsdiv_val[10]);
 }
 
 void am62l_low_latency_standby()
 {
+
+	// change the LPSC values only if they are not already disabled
+	for(int i=0;i<LPSC_COUNT;i++){
+		if(saved_state.lpsc_value[i]!=0){
+			set_main_psc_state(psc_id[i],lpsc_id[i],PSC_PD_ON,PSC_DISABLE);
+		}
+	}
+
 	// MAIN_PLL0
 	mmio_write_32(MAIN_PLL0_HSDIVx(0), (saved_state.pll_hsdiv_val[0] & ~(0xff)) | 0xf);
 	mmio_write_32(MAIN_PLL0_HSDIVx(5), (saved_state.pll_hsdiv_val[5] & ~(0xff)) | 0x4);
@@ -202,13 +211,6 @@ void am62l_low_latency_standby()
 
 	// A53 running off Bypass clock
 	mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[10] | 0x80000000);
-
-	// change the LPSC values only if they are not already disabled
-	for(int i=0;i<LPSC_COUNT;i++){
-		if(saved_state.lpsc_value[i]!=0){
-			set_main_psc_state(psc_id[i],lpsc_id[i],PSC_PD_ON,PSC_DISABLE);
-		}
-	}
 
 	//DDR AUTO SELF REFRESH
 	mmio_write_32(EMIF_CTLCFG_DENALI_CTL_168,0x0000ff07);
