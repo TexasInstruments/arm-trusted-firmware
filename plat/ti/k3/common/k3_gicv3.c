@@ -92,6 +92,14 @@ void k3_gic_pcpu_init(void)
 	gicv3_rdistif_init(plat_my_core_pos());
 }
 
+void k3_gic_pcpu_restore(void)
+{
+       unsigned int core = plat_my_core_pos();
+
+       gicv3_rdistif_init_restore(core, &rdist_ctx[core]);
+       gicv3_cpuif_enable(core);
+}
+
 void k3_gic_save_context(void)
 {
 	for (unsigned int i = 0U; i < PLATFORM_CORE_COUNT; i++) {
