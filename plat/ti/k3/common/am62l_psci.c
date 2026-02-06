@@ -74,7 +74,7 @@ static void am62l_cpu_standby(plat_local_state_t cpu_state)
 	write_scr_el3(scr);
 }
 
-static int __maybe_unused am62l_loc_pwr_on(int core) {
+static int __maybe_unused am62l_core_pwr_domain_on(int core) {
 	int proc_id = PLAT_PROC_START_ID + core;	// should be 0x21
 	int ret;
 
@@ -110,48 +110,23 @@ static int __maybe_unused am62l_loc_pwr_on(int core) {
 
 }
 
+static void am62l_core_pwr_domain_off(int core) {
+	device_id_drop_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0);
+	set_main_psc_state(PD_MPU_CLST_CORE_0 + core, LPSC_MAIN_MPU_CLST_CORE_0 + core,
+			PSC_PD_OFF, PSC_SYNCRESETDISABLE);
+}
+
 static int am62l_pwr_domain_on(u_register_t mpidr)
 {
-	int core, proc_id, ret;
-
-	core = plat_core_pos_by_mpidr(mpidr);
+	int core = plat_core_pos_by_mpidr(mpidr);
 	if (core < 0) {
 		ERROR("Could not get target core id: %d\n", core);
 		return PSCI_E_INTERN_FAIL;
 	}
 
-	proc_id = PLAT_PROC_START_ID + core;	// should be 0x21
-
-	VERBOSE("proc_id = 0x%x\n", proc_id);
-
-	ret = ti_sci_proc_request(proc_id);
-	if (ret) {
-		ERROR("Request for processor failed: %d\n", ret);
-		return PSCI_E_INTERN_FAIL;
-	}
-
-	ret = ti_sci_proc_set_boot_cfg(proc_id, am62l_sec_entrypoint, 0, 0);
-	if (ret) {
-		ERROR("Request to set core boot address failed: %d\n", ret);
-		return PSCI_E_INTERN_FAIL;
-	}
-
-	/* sanity check these are off before starting a core */
-	ret = ti_sci_proc_set_boot_ctrl(proc_id,
-					0, PROC_BOOT_CTRL_FLAG_ARMV8_L2FLUSHREQ |
-					PROC_BOOT_CTRL_FLAG_ARMV8_AINACTS |
-					PROC_BOOT_CTRL_FLAG_ARMV8_ACINACTM);
-	if (ret) {
-		ERROR("Request to clear boot configuration failed: %d\n", ret);
-		return PSCI_E_INTERN_FAIL;
-	}
-
-	set_main_psc_state(PD_MPU_CLST_CORE_0 + core, LPSC_MAIN_MPU_CLST_CORE_0 + core,
-			   PSC_PD_ON, PSC_ENABLE);
-	device_id_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
-
-	return PSCI_E_SUCCESS;
+	return am62l_core_pwr_domain_on(core);
 }
+
 
 static void am62l_pwr_domain_off(const psci_power_state_t *target_state)
 {
@@ -175,9 +150,7 @@ static void __dead2 am62l_pwr_domain_off_wfi(const psci_power_state_t *target_st
 		 * Also drop the power up reference that was increased as part
 		 * of scmi_handler_device_state_set_on earlier
 		 */
-		device_id_drop_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0);
-		set_main_psc_state(PD_MPU_CLST_CORE_0 + core, LPSC_MAIN_MPU_CLST_CORE_0 + core,
-				   PSC_PD_OFF, PSC_SYNCRESETDISABLE);
+		am62l_core_pwr_domain_off(core);
 	}
 
 	while (true)
@@ -302,19 +275,15 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 			/* Signal that secondary core has entered suspend */
 			onlycore_1st = 0xDEEDFF;
 			k3_gic_cpuif_disable();
-			/*
-			 * Now queue up the core shutdown request.
-			 * Also drop the power up reference that was increased as part
-			 * of scmi_handler_device_state_set_on earlier
-			 */
 			return;
 		}
 
-		// wait for the other core to do it's thing
+		// wait for the other core to finish sequence and hit wfi
 		while(onlycore_1st != 0xDEEDFF) {
 			udelay(10);
 		}
 
+		am62l_core_pwr_domain_off(1);	// now turn OFF the core 1 after it has hit wfi
 		mode = am62l_lpm_state;
 
 		/*
@@ -322,9 +291,8 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 		 */
 		if (mode != 0xDEAD) {
 			INFO ("STATE = %d", mode);
-			device_id_drop_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0);
-			set_main_psc_state(PD_MPU_CLST_CORE_0 + 1, LPSC_MAIN_MPU_CLST_CORE_0 + 1,
-					PSC_PD_OFF, PSC_SYNCRESETDISABLE);
+			am62l_core_pwr_domain_off(1); // power off the other core as it
+								// should be in WFI now.
 		} else if (mode == 0xDEAD) {
 			ERROR("INVALID MODE, core = %d!!\n", core);
 			return;
@@ -338,7 +306,7 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 		if ((mode == 0) || (mode == 6)) {
 			INFO("Started Suspend Sequence in ATF\n");
 			/* Isolate the I/Os to allow I/O Daisy chain wakeup */
-			// k3_lpm_set_io_isolation(true);
+			k3_lpm_set_io_isolation(true);
 			k3_lpm_config_magic_words(mode);
 			ti_sci_prepare_sleep(mode, context_save_addr, 0);
 			INFO("sent prepare message\n");
@@ -385,7 +353,7 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 			update_fwl_configs();
 
 			/* Remove the I/O isolation */
-			// k3_lpm_set_io_isolation(false);
+			k3_lpm_set_io_isolation(false);
 			/* Initialize the console to provide early debug support */
 			k3_console_setup();
 			udelay(1000);
@@ -413,7 +381,7 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 		gicv3_set_interrupt_pending(60, 0);
 		plat_ic_raise_ns_sgi(60, 0);
 
-		am62l_loc_pwr_on(1);
+		am62l_core_pwr_domain_on(1);
 
 		/*
 		 * Reset synchronization variables for next suspend cycle.
