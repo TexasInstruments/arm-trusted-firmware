@@ -97,7 +97,7 @@ void set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint3
 	pdctrl = mmio_read_32(pdctrl_ptr);
 	pdstat = mmio_read_32(pdstat_ptr);
 
-	INFO("%s: before: md_id=%d, mdstat=0x%x, pdstat=0x%x\n", __func__, md_id, mdstat, pdstat);
+	VERBOSE("%s: before: md_id=%d, mdstat=0x%x, pdstat=0x%x\n", __func__, md_id, mdstat, pdstat);
 	if (((pdstat & 0x1) == pd_state) && ((mdstat & 0x1f) == md_state))
 		return;
 
@@ -149,7 +149,7 @@ void set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint3
 	//check states
 	mdstat = mmio_read_32(mdstat_ptr);
 	pdstat = mmio_read_32(pdstat_ptr);
-	INFO("%s: after: md_id=%d, mdstat=0x%x, pdstat=0x%x\n", __func__, md_id, mdstat, pdstat);
+	VERBOSE("%s: after: md_id=%d, mdstat=0x%x, pdstat=0x%x\n", __func__, md_id, mdstat, pdstat);
 }
 
 void am62l_save_state()
@@ -176,6 +176,11 @@ void am62l_restore_state()
 {
     // AUTO CLOCK GATING OFF
     mmio_write_32(WKUP_CTRL_MMR_CFG5_CLKGATE_CTRL0,saved_state.auto_clk_gate);
+
+	//DDR out of AUTO SELF REFRESH
+	mmio_write_32(EMIF_CTLCFG_DENALI_CTL_168,saved_state.ddr_reg[0]);
+	mmio_write_32(EMIF_CTLCFG_DENALI_CTL_169,saved_state.ddr_reg[1]);
+	mmio_write_32(EMIF_CTLCFG_DENALI_CTL_167,saved_state.ddr_reg[2]);
 
     /* Restore PLL */
     for(int i=0;i<10;i++){
