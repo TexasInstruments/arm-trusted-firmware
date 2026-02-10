@@ -12,6 +12,7 @@
 #include <devices.h>
 #include <device.h>
 #include <drivers/arm/gicv3.h>
+#include "../drivers/arm/gic/v3/gicv3_private.h"
 #include <fwl.h>
 #include <gtc.h>
 #include <k3_console.h>
@@ -356,14 +357,82 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 			k3_lpm_set_io_isolation(false);
 			/* Initialize the console to provide early debug support */
 			k3_console_setup();
-			udelay(1000);
 			/* Initialize the console to provide early debug support */
 			INFO("!!resume Sequence in ATF core(%d)\n", core);
 		}
 
 		if (core == 1) {
-			INFO("!!GIC restore \n");
+			/*
+			 * Secondary core (core 1) resume synchronization:
+			 *
+			 * Problem: During s2idle resume, if core 1 returns to the kernel
+			 * before core 0 has fully completed its resume sequence, the kernel
+			 * may incorrectly put core 1 back to sleep, causing a deadlock.
+			 *
+			 * Solution: Core 1 waits here in EL3 until it detects an IPI from
+			 * the kernel (sent by core 0 after its resume is complete).
+			 *
+			 * Why we poll GICR_ISPENDR0 directly instead of using GIC helpers:
+			 *
+			 * The standard approach would be to use gicv3_get_pending_interrupt_id()
+			 * which reads ICC_HPPIR0_EL1/ICC_HPPIR1_EL1 (Highest Priority Pending
+			 * Interrupt Register). However, HPPIR only reports an interrupt if ALL
+			 * of these conditions are met:
+			 *   - Interrupt is pending (ISPENDR)
+			 *   - Interrupt is enabled (ISENABLER)
+			 *   - Interrupt group is enabled (IGRPEN0/IGRPEN1)
+			 *   - Interrupt priority is higher than PMR (Priority Mask Register)
+			 *   - Interrupt priority is higher than RPR (Running Priority Register)
+			 *   - For Group 0: interrupt must be configured as Secure
+			 *   - For Group 1: appropriate NS/S configuration
+			 *
+			 * During resume, even though we observed:
+			 *   - ISPENDR0=0x2 (SGI 1 pending)
+			 *   - ISENABLER0 bit 1 set (enabled)
+			 *   - IGRPEN0=1 (Group 0 enabled)
+			 *   - Priority 0xc0 < PMR 0xf8 (should pass priority mask)
+			 *
+			 * HPPIR0 still returned 0x3FF (spurious). The exact cause is unclear
+			 * but likely relates to the Running Priority Register (RPR) state or
+			 * subtle CPU interface initialization ordering after restore.
+			 *
+			 * Reading GICR_ISPENDR0 directly from the redistributor bypasses all
+			 * CPU interface filtering and reliably shows the raw pending state.
+			 *
+			 * GIC Redistributor base address:
+			 *
+			 * rdistif_base_addrs[] is populated during GIC driver initialization
+			 * by gicv3_rdistif_base_addrs_probe() in gicv3_driver_init(). It
+			 * iterates through GICR frames, reads GICR_TYPER to get the processor
+			 * number (affinity), and stores each redistributor's base address
+			 * indexed by core number. This array is defined in k3_gicv3.c and
+			 * passed to the GICv3 driver via gicv3_driver_data_t.
+			 *
+			 * GICR_ISPENDR0 register (offset 0x10200 from GICR base):
+			 *   - Bits 0-15: SGI pending status (one bit per SGI 0-15)
+			 *   - Bits 16-31: PPI pending status
+			 *   - We mask with 0xFFFF to check only SGIs
+			 */
+			int core1_timeout = 10000; /* 10000 * 100us = 1 second */
+			extern uintptr_t rdistif_base_addrs[];
+			uintptr_t gicr_base = rdistif_base_addrs[core];
+			uint32_t ispendr0;
+
+			/* Restore per-CPU GIC redistributor context and enable CPU interface */
 			k3_gic_pcpu_restore();
+
+			/* Poll GICR_ISPENDR0 directly for any pending SGI (bits 0-15) */
+			do {
+				ispendr0 = gicr_read_ispendr0(gicr_base);
+				if (ispendr0 & 0xFFFFU) {
+					break;
+				}
+				udelay(100);
+				core1_timeout--;
+			} while (core1_timeout > 0);
+
+			if (core1_timeout == 0)
+				ERROR("Core 1: TIMEOUT waiting for IPI from kernel!\n");
 
 			return;
 		}
