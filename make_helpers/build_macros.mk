@@ -595,7 +595,7 @@ define MAKE_BL
 
         $(eval LINKER_SCRIPT_SOURCES := $($(BL)_LINKER_SCRIPT_SOURCES))
         $(eval LINKER_SCRIPTS := $(call linker_script_path,$(LINKER_SCRIPT_SOURCES)))
-        $(eval GNU_LINKER_ARGS := $(call ld_prefix,-Map=$(MAPFILE)) $(foreach script,$(LINKER_SCRIPTS) $(DEFAULT_LINKER_SCRIPT), $(call ld_prefix,--script $(script))))
+        $(eval GNU_LINKER_ARGS := $(call ld_prefix,-Map=$(MAPFILE)) $(foreach script,$(LINKER_SCRIPTS) $(DEFAULT_LINKER_SCRIPT), $(addprefix -T, $(script))))
 
 $(eval $(call MAKE_OBJS,$(BUILD_DIR),$(SOURCES),$(1),$(BL)))
 
