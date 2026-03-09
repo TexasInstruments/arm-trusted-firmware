@@ -60,7 +60,10 @@ int ti_soc_init(void)
 	       version.firmware_revision,
 	       version.firmware_description);
 
-	/* Update firewall configurations */
+
+	/* WORKAROUND: Open up ROM's bad firewall configurations */
+	open_rom_fwl();
+	/* Apply firewall configurations over BL31 and BL32 memory regions */
 	update_fwl_configs();
 
 	ret = ti_sci_proc_request(PLAT_PROC_START_ID);

@@ -46,14 +46,21 @@ static void add_fwl_configs(const uint16_t fwl_id, const uint16_t region,
 	}
 }
 
+void open_rom_fwl(void)
+{
+	uint32_t permissions[3] = {0};
+
+	/* Open up firewalls that were configured by ROM for boot phase. */
+	permissions[0] = permissions[1] = permissions[2] = FWL_PERM_ALL_RW;
+	for (int i = 0; i < ARRAY_SIZE(fwls); i++) {
+		add_fwl_configs(fwls[i].fwl_id, fwls[i].region, FWL_MAX_PRIVID_SLOTS,
+				FWL_CTRL_EN_BG, permissions, 0x0, 0xFFFFFFFFF);
+	}
+}
+
 void update_fwl_configs(void)
 {
 	uint32_t permissions[3] = {0};
-	/* Disable firewalls that were configured by ROM for boot phase. */
-	for (int i = 0; i < ARRAY_SIZE(fwls); i++) {
-		add_fwl_configs(fwls[i].fwl_id, fwls[i].region, FWL_MAX_PRIVID_SLOTS,
-				0, permissions, 0x0, UINT32_MAX);
-	}
 
 	permissions[0] = permissions[1] = permissions[2] = FWL_PERM_ALL_RW;
 	add_fwl_configs(DDR_FWL_ID, DDR_BG_REGION, 3, FWL_CTRL_EN_BG,

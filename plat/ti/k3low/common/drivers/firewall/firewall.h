@@ -43,10 +43,20 @@ struct fwl_data {
 };
 
 /*
- * Updates firewall configurations by disabling ROM-configured firewalls.
- * This function should be called during boot initialization and after
- * resume from low power mode to ensure firewall regions that were
- * configured by ROM for the boot phase are properly disabled.
+ * ROM makes bad firewall configurations that cause boot to fail. As a
+ * workaround, make these configurations permissive for all and keep them
+ * enabled. Keeping them permissive has the same effect as disabling them, and
+ * keeping them enabled causes TIFS to save their context during suspend and
+ * restore it during resume. Disabling those firewalls would lead to TIFS not
+ * restoring context correctly after ROM sets those firewalls again, during
+ * resume.
+ */
+void open_rom_fwl(void);
+
+/*
+ * Protects BL31 and BL32 memory regions by configuring restrictive foreground
+ * firewalls over them. Configures a permissive background firewall over rest of
+ * the DDR.
  */
 void update_fwl_configs(void);
 
