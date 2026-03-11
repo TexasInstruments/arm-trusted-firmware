@@ -91,7 +91,7 @@ $(eval $(call add_define,BL32_SIZE))
 PRELOADED_BL33_BASE ?= 0x82000000
 $(eval $(call add_define,PRELOADED_BL33_BASE))
 
-TIFS_LPM_SAVE_CTX ?= 0x81A00000
+TIFS_LPM_SAVE_CTX ?= 0x801fc000
 $(eval $(call add_define,TIFS_LPM_SAVE_CTX))
 
 K3_HW_CONFIG_BASE ?= 0x88000000
