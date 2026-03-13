@@ -12,7 +12,7 @@ $(eval $(call add_define,BL32_BASE))
 PRELOADED_BL33_BASE ?= 0x82000000
 $(eval $(call add_define,PRELOADED_BL33_BASE))
 
-K3_HW_CONFIG_BASE ?= 0x88000000
+K3_HW_CONFIG_BASE ?= 0x81A00000
 $(eval $(call add_define,K3_HW_CONFIG_BASE))
 
 include ${PLAT_PATH}/../common/scmi/ti_scmi.mk
