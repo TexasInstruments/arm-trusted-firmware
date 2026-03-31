@@ -16,6 +16,7 @@
 #define DEVICE_PM_H
 
 #include <stdbool.h>
+#include <ti_device.h>
 
 struct notifier;
 #define CONFIG_PM
@@ -188,6 +189,20 @@ void ti_device_set_retention(struct ti_device *dev, bool retention);
  *
  */
 void ti_device_clear_flags(struct ti_device *dev);
+
+/**
+ * \brief Set the power up reference for a device by index.
+ *
+ * \param idx The index of the device.
+ */
+void ti_device_id_power_up_ref(dev_idx_t idx);
+
+/**
+ * \brief Drop the power up reference for a device by index.
+ *
+ * \param idx The index of the device.
+ */
+void ti_device_id_drop_power_up_ref(dev_idx_t idx);
 
 /**
  * \brief Set the reset isolation flag for a device.

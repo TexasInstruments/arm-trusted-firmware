@@ -18,6 +18,7 @@
 #include <k3_console.h>
 #include <ti_devices.h>
 #include <ti_device_handler.h>
+#include <ti_device_pm.h>
 #include <k3_gicv3.h>
 #include <lib/el3_runtime/cpu_data.h>
 #include <lib/mmio.h>
@@ -106,6 +107,7 @@ static int __maybe_unused am62l_core_pwr_domain_on(int core) {
 
 	set_main_psc_state(PD_MPU_CLST_CORE_0 + core, LPSC_MAIN_MPU_CLST_CORE_0 + core,
 			   PSC_PD_ON, PSC_ENABLE);
+	ti_device_id_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0_A53_0 + core);
 
 	return PSCI_E_SUCCESS;
 
@@ -150,6 +152,7 @@ static void am62l_pwr_down_domain(const psci_power_state_t *target_state)
 	/* If our cluster is not going down we stop here */
 	if (SYSTEM_PWR_STATE(target_state) != PLAT_MAX_OFF_STATE) {
 		VERBOSE("%s: A53 CORE: %d OFF\n", __func__, core);
+		ti_device_id_drop_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0);
 		am62l_core_pwr_domain_off(core);
 	}
 }

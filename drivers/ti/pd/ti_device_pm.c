@@ -107,6 +107,25 @@ void ti_device_set_state(struct ti_device *device_ptr, uint8_t host_idx, bool en
 	}
 }
 
+void ti_device_id_power_up_ref(dev_idx_t idx)
+{
+	struct ti_device *dev = &soc_devices[idx];
+
+	ti_device_set_state(dev, DEV_POWER_ON_ENABLED_HOST_IDX, true);
+}
+
+void ti_device_id_drop_power_up_ref(dev_idx_t idx)
+{
+	struct ti_device *dev = &soc_devices[idx];
+
+	/* Deinitialize flags only for devices that have been set by a host */
+	if ((dev->flags != 0U) && (dev->initialized != 0U)) {
+		dev->flags = 0U;
+		ti_device_clear_flags(dev);
+		dev->initialized = 0U;
+	}
+}
+
 void ti_device_set_retention(struct ti_device *device_ptr, bool retention)
 {
 	bool is_retention = ((device_ptr->flags & DEV_FLAG_RETENTION) != 0U);
