@@ -260,6 +260,9 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 
 		mode = am62l_lpm_state;
 
+		/* Save the GIC ITS context */
+		k3_gic_its_save();
+
 		/*
 		 * mode=6 for RTC only + DDR and mode=0 for deepsleep
 		 */
@@ -389,6 +392,8 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 		gicv3_enable_interrupt(60, 0);
 		gicv3_set_interrupt_pending(60, 0);
 		plat_ic_raise_ns_sgi(60, 0);
+
+		k3_gic_its_restore();
 
 		am62l_core_pwr_domain_on(1);
 	} else {

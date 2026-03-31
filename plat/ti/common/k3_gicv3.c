@@ -8,10 +8,13 @@
 
 #include <assert.h>
 #include <common/bl_common.h>
+#include <common/debug.h>
 #include <common/interrupt_props.h>
 #include <drivers/arm/gicv3.h>
-#include <lib/utils.h>
+#include <drivers/delay_timer.h>
 #include <lib/mmio.h>
+#include <lib/utils.h>
+#include <lib/utils_def.h>
 #include <plat/common/platform.h>
 
 #include <k3_gicv3.h>
@@ -21,6 +24,8 @@ uintptr_t rdistif_base_addrs[PLATFORM_CORE_COUNT];
 
 static gicv3_redist_ctx_t rdist_ctx[PLATFORM_CORE_COUNT];
 static gicv3_dist_ctx_t dist_ctx;
+static gicv3_its_ctx_t its_ctx;
+static int its_ctx_saved;
 
 static const interrupt_prop_t k3_interrupt_props[] = {
 	PLAT_ARM_G1S_IRQ_PROPS(INTR_GROUP1S),
@@ -106,4 +111,113 @@ void k3_gic_restore_context(void)
 	for (unsigned int i = 0U; i < PLATFORM_CORE_COUNT; i++) {
 		gicv3_rdistif_init_restore(i, &rdist_ctx[i]);
 	}
+}
+
+void k3_gic_its_save(void)
+{
+	uint32_t ctlr;
+	uint32_t count = 1000000U;
+	unsigned int i;
+
+	its_ctx_saved = 0;
+
+	ctlr = mmio_read_32(K3_GITS_BASE + GITS_CTLR);
+	its_ctx.gits_ctlr = ctlr;
+
+	/* Skip quiesce if already disabled and quiescent */
+	if ((ctlr & GITS_CTLR_QUIESCENT_BIT) != 0U &&
+	    (ctlr & GITS_CTLR_ENABLED_BIT) == 0U) {
+		its_ctx.gits_cbaser = mmio_read_64(K3_GITS_BASE + GITS_CBASER);
+		for (i = 0U; i < ARRAY_SIZE(its_ctx.gits_baser); i++) {
+			its_ctx.gits_baser[i] = mmio_read_64(K3_GITS_BASE +
+							     GITS_BASER +
+							     (8U * i));
+		}
+		its_ctx_saved = 1;
+		return;
+	}
+
+	/* Clear Enable and ImDe, then wait for the ITS to drain */
+	ctlr &= ~(GITS_CTLR_ENABLED_BIT | BIT_32(1));
+	mmio_write_32(K3_GITS_BASE + GITS_CTLR, ctlr);
+
+	while (count != 0U) {
+		if ((mmio_read_32(K3_GITS_BASE + GITS_CTLR) &
+		     GITS_CTLR_QUIESCENT_BIT) != 0U) {
+			break;
+		}
+		count--;
+		udelay(1);
+	}
+
+	if (count == 0U) {
+		ERROR("k3_gic_its_save: ITS failed to quiesce\n");
+		mmio_write_32(K3_GITS_BASE + GITS_CTLR, its_ctx.gits_ctlr);
+		return;
+	}
+
+	its_ctx.gits_cbaser = mmio_read_64(K3_GITS_BASE + GITS_CBASER);
+	for (i = 0U; i < ARRAY_SIZE(its_ctx.gits_baser); i++) {
+		its_ctx.gits_baser[i] = mmio_read_64(K3_GITS_BASE +
+						     GITS_BASER + (8U * i));
+	}
+	its_ctx_saved = 1;
+}
+
+void k3_gic_its_restore(void)
+{
+	uint32_t ctlr;
+	uint32_t count = 1000000U;
+	unsigned int i;
+
+	/* ITS must be disabled before we touch CBASER/BASER */
+	assert((mmio_read_32(K3_GITS_BASE + GITS_CTLR) &
+		GITS_CTLR_ENABLED_BIT) == 0U);
+
+	/* Ensure quiescent defensively before writing registers */
+	ctlr = mmio_read_32(K3_GITS_BASE + GITS_CTLR);
+	if ((ctlr & GITS_CTLR_QUIESCENT_BIT) == 0U) {
+		ctlr &= ~(GITS_CTLR_ENABLED_BIT | BIT_32(1));
+		mmio_write_32(K3_GITS_BASE + GITS_CTLR, ctlr);
+
+		while (count != 0U) {
+			if ((mmio_read_32(K3_GITS_BASE + GITS_CTLR) &
+			     GITS_CTLR_QUIESCENT_BIT) != 0U) {
+				break;
+			}
+			count--;
+			udelay(1);
+		}
+
+		if (count == 0U) {
+			ERROR("k3_gic_its_restore: ITS failed to quiesce on resume\n");
+			return;
+		}
+	}
+
+	if (its_ctx_saved == 0) {
+		WARN("k3_gic_its_restore: skipping CBASER/BASERn restore (save incomplete)\n");
+	} else {
+		/* Writing CBASER resets CREADR to 0; reset CWRITER to match */
+		mmio_write_64(K3_GITS_BASE + GITS_CBASER, its_ctx.gits_cbaser);
+		mmio_write_64(K3_GITS_BASE + GITS_CWRITER, 0ULL);
+
+		/* Restore only valid BASERn entries (VALID = bit 63) */
+		for (i = 0U; i < ARRAY_SIZE(its_ctx.gits_baser); i++) {
+			if ((its_ctx.gits_baser[i] & BIT_64(63)) == 0ULL) {
+				continue;
+			}
+			mmio_write_64(K3_GITS_BASE + GITS_BASER + (8U * i),
+				      its_ctx.gits_baser[i]);
+		}
+	}
+
+	/*
+	 * Restore CTLR as-is (ENABLE=1). For deep sleep the kernel's
+	 * syscore resume path re-enables the ITS anyway. For s2idle the
+	 * syscore ops are never called, so TF-A must leave the ITS enabled
+	 * here or subsequent ITS commands issued during CPU hotplug will
+	 * time out waiting for the queue to drain.
+	 */
+	mmio_write_32(K3_GITS_BASE + GITS_CTLR, its_ctx.gits_ctlr);
 }
