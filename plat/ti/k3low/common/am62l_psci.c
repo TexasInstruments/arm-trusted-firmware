@@ -386,8 +386,9 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 		/* 60 irqn = RTC */
 		gicv3_set_spi_routing(60, GICV3_IRM_ANY, 0);
 		gicv3_enable_interrupt(60, 0);
+		write_icc_igrpen1_el3(read_icc_igrpen1_el3() |
+				IGRPEN1_EL3_ENABLE_G1NS_BIT);
 		gicv3_set_interrupt_pending(60, 0);
-		plat_ic_raise_ns_sgi(60, 0);
 
 		am62l_core_pwr_domain_on(1);
 	} else {
