@@ -37,8 +37,6 @@
 volatile unsigned int val_mdctl;
 volatile unsigned int val_mdstat;
 volatile uint32_t am62l_lpm_state = 0xDEAD;
-/* Sync helper for core 0 to check if core 1 hit wfi. 0xDEEDFF indicates WFI. */
-volatile int core_1_wfi_status = 0x0;
 /*
  * CPU Hot plug(CPU HP) status flag, used to differentiate if it's regular
  * deep or s2idle mem_sleep from the OS
@@ -57,6 +55,9 @@ volatile int core_1_hp_status = 0x0;
 #define LPM_PSTATE_DEEPSLEEP			0x2012235U  /* Shallow, more wakeup sources */
 #define LPM_PSTATE_RTC_DDR			0x2012234U  /* Deep, RTC wakeup only */
 #define LPM_PSTATE_SECONDARY_CPU_SUSPEND	0x0012233U  /* Non-primary CPU suspend marker */
+
+#define MAIN_PSC_MDSTAT_BASE	0x00400800UL
+#define LPSC_STATE_MASK		0x1fU
 
 uintptr_t am62l_sec_entrypoint;
 uintptr_t am62l_sec_entrypoint_glob;
@@ -149,12 +150,9 @@ static void am62l_pwr_down_domain(const psci_power_state_t *target_state)
 
 	core = plat_my_core_pos();
 
-	/* If our cluster is not going down we stop here */
-	if (SYSTEM_PWR_STATE(target_state) != PLAT_MAX_OFF_STATE) {
-		VERBOSE("%s: A53 CORE: %d OFF\n", __func__, core);
-		ti_device_id_drop_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0);
-		am62l_core_pwr_domain_off(core);
-	}
+	VERBOSE("%s: A53 CORE: %d OFF\n", __func__, core);
+	ti_device_id_drop_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0);
+	am62l_core_pwr_domain_off(core);
 }
 
 void am62l_pwr_domain_on_finish(const psci_power_state_t *target_state)
@@ -246,17 +244,20 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 		if (core != 0) {
 			INFO("\n%s: A53 CORE: %d suspend\n", __func__, core);
 			/* Signal that secondary core has entered suspend */
-			core_1_wfi_status = 0xDEEDFF;
 			k3_gic_cpuif_disable();
 			return;
 		}
 
-		/* wait 1000uS for the other core to finish sequence and hit wfi */
+		/* wait 10000uS for the other core to finish suspend sequence and turn itself off */
 		uint32_t timeout_core_wfi = 1000;
-		while((core_1_wfi_status != 0xDEEDFF) && (timeout_core_wfi != 0)) {
+		uint32_t core_1_mdstat_ptr = MAIN_PSC_MDSTAT_BASE + (4 * LPSC_MAIN_MPU_CLST_CORE_1);
+		volatile uint32_t core_1_mdstat;
+
+		do {
+			core_1_mdstat = mmio_read_32(core_1_mdstat_ptr) & LPSC_STATE_MASK;
 			timeout_core_wfi--;
 			udelay(10);
-		}
+		} while((core_1_mdstat != PSC_SYNCRESETDISABLE) && (timeout_core_wfi != 0));
 
 		mode = am62l_lpm_state;
 
@@ -265,8 +266,6 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 		 */
 		if (mode != 0xDEAD && timeout_core_wfi != 0) {
 			INFO ("%s: mode = %d", __func__, mode);
-			/* power off the other core as it should be in WFI by now. */
-			am62l_core_pwr_domain_off(1);
 		} else if (timeout_core_wfi == 0) {
 			ERROR("%s: timeout waiting for core 1", __func__);
 		} else {
@@ -400,7 +399,6 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 	 * This must be done after resume is complete to ensure
 	 * proper synchronization on subsequent suspend attempts.
 	 */
-	core_1_wfi_status = 0x0;
 	am62l_lpm_state = 0xDEAD;
 }
 
