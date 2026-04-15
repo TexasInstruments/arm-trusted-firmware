@@ -166,6 +166,26 @@ __wkupsramfunc static void pll_bypass(struct pll_raw_data *pll, bool enable)
 	mmio_write_32(pll->base + PLL_16FFT_CTRL_OFFSET, ctrl);
 }
 
+__wkupsramfunc static void pll_disable_hsdiv(struct pll_raw_data *pll, uint8_t hsdiv)
+{
+	uint32_t ctrl;
+
+	ctrl = mmio_read_32(pll->base + PLL_16FFT_HSDIV_CTRL_OFFSET + (hsdiv * 0x4U));
+	ctrl &= ~PLL_16FFT_HSDIV_CTRL_CLKOUT_EN;
+
+	mmio_write_32(pll->base + PLL_16FFT_HSDIV_CTRL_OFFSET + (hsdiv * 0x4U), ctrl);
+}
+
+__wkupsramfunc static void pll_enable_hsdiv(struct pll_raw_data *pll, uint8_t hsdiv)
+{
+	uint32_t ctrl;
+
+	ctrl = mmio_read_32(pll->base + PLL_16FFT_HSDIV_CTRL_OFFSET + (hsdiv * 0x4U));
+	ctrl |= PLL_16FFT_HSDIV_CTRL_CLKOUT_EN;
+
+	mmio_write_32(pll->base + PLL_16FFT_HSDIV_CTRL_OFFSET + (hsdiv * 0x4U), ctrl);
+}
+
 __wkupsramfunc int32_t k3low_pll_restore(struct pll_raw_data *pll)
 {
 	uint8_t i;
@@ -359,5 +379,40 @@ __wkupsramfunc void k3low_pll_bypass_hsdivs(struct pll_raw_data *pll)
 			mmio_write_32(pll->base + PLL_16FFT_HSDIV_CTRL_OFFSET +
 				      (i * 0x4U), PLL_16FFT_HSDIV_BYPASS_VALUE);
 		}
+	}
+}
+
+__wkupsramfunc void k3low_pll_program_hsdiv(struct pll_raw_data *pll, uint8_t hsdiv, uint8_t value)
+{
+	uint32_t cfg, ctrl;
+
+	cfg = mmio_read_32(pll->base + PLL_16FFT_CFG_OFFSET);
+	/* Program HSDIV output if present */
+	if (((1U << (hsdiv + 16U)) & cfg) != 0U) {
+		ctrl = mmio_read_32(pll->base + PLL_16FFT_HSDIV_CTRL_OFFSET + (hsdiv * 0x4U));
+		/* Clear divider value and set new value */
+		ctrl = (ctrl & ~PLL_16FFT_HSDIV_CTRL_HSDIV_MASK) |
+		       (value & PLL_16FFT_HSDIV_CTRL_HSDIV_MASK);
+		mmio_write_32(pll->base + PLL_16FFT_HSDIV_CTRL_OFFSET + (hsdiv * 0x4U), ctrl);
+	}
+}
+
+__wkupsramfunc void k3low_pll_disable_hsdivs(struct pll_raw_data *pll,
+											 const uint8_t *hsdiv_indices, uint8_t count)
+{
+	uint8_t i;
+
+	for (i = 0; i < count; i++) {
+		pll_disable_hsdiv(pll, hsdiv_indices[i]);
+	}
+}
+
+__wkupsramfunc void k3low_pll_enable_hsdivs(struct pll_raw_data *pll,
+											const uint8_t *hsdiv_indices, uint8_t count)
+{
+	uint8_t i;
+
+	for (i = 0; i < count; i++) {
+		pll_enable_hsdiv(pll, hsdiv_indices[i]);
 	}
 }
