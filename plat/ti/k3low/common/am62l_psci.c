@@ -54,6 +54,7 @@ volatile int core_1_hp_status = 0x0;
 #define PMCTRL_SYS					(0x80)
 
 /* LPM state identifiers passed from kernel via PSCI cpu_suspend */
+#define LPM_PSTATE_DSS_DEEPSLEEP		0x2012236U  /* DeepSleep with DSS system ON */
 #define LPM_PSTATE_DEEPSLEEP			0x2012235U  /* Shallow, more wakeup sources */
 #define LPM_PSTATE_RTC_DDR			0x2012234U  /* Deep, RTC wakeup only */
 #define LPM_PSTATE_SECONDARY_CPU_SUSPEND	0x0012233U  /* Non-primary CPU suspend marker */
@@ -212,7 +213,10 @@ static int am62l_validate_power_state(unsigned int power_state,
 	} else if (pstate == PSTATE_TYPE_POWERDOWN) {
 		for (i = MPIDR_AFFLVL0; i <= pwr_lvl; i++)
 			req_state->pwr_domain_state[i] = PLAT_MAX_OFF_STATE;
-		if (power_state == LPM_PSTATE_DEEPSLEEP) {
+		if (power_state == LPM_PSTATE_DSS_DEEPSLEEP) {
+			INFO("%s: (core %d): DSS Deep Sleep: 0x%x\n", __func__, core, power_state);
+			am62l_lpm_state = TI_K3_SLEEP_MODE_DSS_PLUS_DEEP_SLEEP;
+		} else if (power_state == LPM_PSTATE_DEEPSLEEP) {
 			INFO("%s: (core %d): Deep Sleep: 0x%x\n", __func__, core, power_state);
 			am62l_lpm_state = TI_K3_SLEEP_MODE_DEEP_SLEEP;
 		} else if (power_state == LPM_PSTATE_RTC_DDR) {

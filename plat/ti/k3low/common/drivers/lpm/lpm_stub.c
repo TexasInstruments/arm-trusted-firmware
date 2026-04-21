@@ -81,6 +81,9 @@
 /* counts of 1us delay for 100ms */
 #define TIMEOUT_100MS					100000U
 
+/* PLL HSDIV0 Configuration for DSS Deep Sleep */
+#define PLL_HSDIV0_MAX_DIVIDER_VALUE	(0x0FU)
+
 /* Main PLL to be saved and restored */
 __wkupsramdata struct pll_raw_data main_pll0 = {
 .base = K3_MAIN_PLL_MMR_BASE + PLLOFFSET(0U), };
@@ -94,6 +97,9 @@ __wkupsramdata struct pll_raw_data main_pll17 = {
 /* Base addresses of main PLL structures to be saved and restored */
 __wkupsramdata struct pll_raw_data *main_plls_save_rstr[3] = {
 &main_pll0, &main_pll8, &main_pll17};
+
+/* HSDIVs to disable in DSS DeepSleep low power mode */
+__wkupsramdata uint8_t main_pll0_hsdivs_to_disable[] = {2, 3, 4, 5, 6, 7, 9};
 
 __wkupsramdata int num_main_plls_save_rstr = 3;
 __wkupsramdata uint8_t usb0_state;
@@ -118,13 +124,13 @@ void k3low_config_wake_sources(bool enable)
 
 void k3low_lpm_config_magic_words(uint32_t mode)
 {
-	if (mode == 0) {
-		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE +
-			      CANUART_WAKE_OFF_MODE, DEEP_SLEEP_MAGIC_WORD);
-	} else {
+	if (mode == TI_K3_SLEEP_MODE_RTC_PLUS_DDR) {
 		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE +
 			      CANUART_WAKE_OFF_MODE,
 			      RTC_ONLY_PLUS_DDR_MAGIC_WORD);
+	} else {
+		mmio_write_32(WKUP_CTRL_MMR_SEC_5_BASE +
+			CANUART_WAKE_OFF_MODE, DEEP_SLEEP_MAGIC_WORD);
 	}
 }
 
@@ -157,12 +163,24 @@ __wkupsramfunc static void save_main_pll(void)
  * @brief Disable main domain plls
  *
  */
-__wkupsramfunc static void disable_main_pll(void)
+__wkupsramfunc static void disable_main_pll(uint32_t mode)
 {
-	int i;
+	if (mode != TI_K3_SLEEP_MODE_DSS_PLUS_DEEP_SLEEP) {
+		int i;
 
-	for (i = 0; i < num_main_plls_save_rstr; i++) {
-		k3low_pll_disable(main_plls_save_rstr[i]);
+		for (i = 0; i < num_main_plls_save_rstr; i++) {
+			k3low_pll_disable(main_plls_save_rstr[i]);
+		}
+	} else {
+		/* Disable main PLL8 (ARM PLL) */
+		k3low_pll_disable(&main_pll8);
+
+		/* Change HSDIV0 frequency value to lowest possible so that it is still functional */
+		k3low_pll_program_hsdiv(&main_pll0, 0, PLL_HSDIV0_MAX_DIVIDER_VALUE);
+
+		/* Disable specific HSDIVs on PLL0 (2,3,4,5,6,7,9) - HSDIV8 left untouched */
+		k3low_pll_disable_hsdivs(&main_pll0, main_pll0_hsdivs_to_disable,
+			ARRAY_SIZE(main_pll0_hsdivs_to_disable));
 	}
 }
 
@@ -420,7 +438,7 @@ __wkupsramsuspendentry void k3low_lpm_stub_entry(uint32_t mode)
 		save_main_pll();
 		lpm_seq_trace(LPM_SEQ_SAVE_MAIN_PLL);
 
-		disable_main_pll();
+		disable_main_pll(mode);
 		lpm_seq_trace(LPM_SEQ_DISABLE_MAIN_PLL);
 
 		/* configure the pmic input */
@@ -432,7 +450,8 @@ __wkupsramsuspendentry void k3low_lpm_stub_entry(uint32_t mode)
 		for (;;)
 			wfi();
 
-	} else if (mode == TI_K3_SLEEP_MODE_DEEP_SLEEP) {
+	} else if ((mode == TI_K3_SLEEP_MODE_DEEP_SLEEP) ||
+			(mode == TI_K3_SLEEP_MODE_DSS_PLUS_DEEP_SLEEP)) {
 
 		/* Wait for a53_1 to turn off */
 		if (lpm_wait_for_secondary_core_down() == false) {
@@ -469,7 +488,7 @@ __wkupsramsuspendentry void k3low_lpm_stub_entry(uint32_t mode)
 		/* configure the gpio clk input to 32K clock */
 		config_gpio_clk_mux(WKUP_GPIO0_CLKSEL_CLK_32K);
 
-		disable_main_pll();
+		disable_main_pll(mode);
 		lpm_seq_trace(LPM_SEQ_DISABLE_MAIN_PLL);
 
 		dsb();
