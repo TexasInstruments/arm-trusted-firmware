@@ -37,10 +37,10 @@
 static int8_t ti_mailbox_poll_rx_status(void)
 {
 	uint32_t num_messages_pending = 0U;
-	uint32_t retry_count = 100U;
+	uint32_t retry_count = 1000U;
 
 	/*
-	 * Keep polling till we get a message for 100 times
+	 * Keep polling till we get a message for 1000 times
 	 * with intervals of 10 milliseconds.
 	 */
 	while (num_messages_pending == 0U) {
