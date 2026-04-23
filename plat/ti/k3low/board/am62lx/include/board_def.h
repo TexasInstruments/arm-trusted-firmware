@@ -22,6 +22,6 @@
  * K3_FUSE_WRITEBUFF_SIZE - Maximum allocated size for the buffer
  */
 #define K3_FUSE_WRITEBUFF_BASE	(0x82000000UL)
-#define K3_FUSE_WRITEBUFF_SIZE	(0x1000UL)
+#define K3_FUSE_WRITEBUFF_SIZE	(0x3000UL)
 
 #endif /* BOARD_DEF_H */
