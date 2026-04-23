@@ -349,6 +349,19 @@ int ti_sci_change_fwl_owner(uint16_t fwl_id, uint16_t region,
 int ti_sci_keywriter_lite(unsigned long addr);
 
 /**
+ * Keywriter Operations
+ *
+ * - ti_sci_keywriter - Command to program efuses using a
+ *                      signed image in memory.
+ *		@addr: The starting memory address of the signed image
+ *			containing the fuse programming data.
+ *
+ * NOTE: for all these functions, the following are generic in nature:
+ * Returns 0 for successful request, else returns corresponding error message.
+ */
+int ti_sci_keywriter(unsigned long addr);
+
+/**
  * OTP Operations
  *
  * - ti_sci_read_otp - Command to read OTP data from the OTP controller.

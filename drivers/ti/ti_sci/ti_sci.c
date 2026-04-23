@@ -2058,6 +2058,45 @@ int ti_sci_keywriter_lite(unsigned long addr)
 }
 
 /**
+ * ti_sci_keywriter() - Program OTP Efuses using a signed
+ *                      image in memory
+ *
+ * @addr: The starting memory address of the signed image
+ *	  containing the fuse programming data.
+ *
+ * Return: 0 if all goes well, else appropriate error message
+ */
+int ti_sci_keywriter(unsigned long addr)
+{
+	struct ti_sci_msg_req_keywriter req;
+	struct ti_sci_msg_resp_keywriter resp;
+
+	struct ti_sci_xfer xfer;
+	int ret;
+
+	ret = ti_sci_setup_one_xfer(TISCI_MSG_KEY_WRITER, 0,
+				    &req, sizeof(req),
+				    &resp, sizeof(resp),
+				    &xfer);
+	if (ret) {
+		ERROR("Message alloc failed (%d)\n", ret);
+		return ret;
+	}
+
+	req.image_addr_low = addr & TISCI_ADDR_LOW_MASK;
+	req.image_addr_high = (addr & TISCI_ADDR_HIGH_MASK) >>
+			     TISCI_ADDR_HIGH_SHIFT;
+
+	ret = ti_sci_do_xfer(&xfer);
+	if (ret) {
+		ERROR("Transfer send failed (%d)\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+/**
  * ti_sci_read_otp() - Read OTP data from the OTP controller
  *
  * @param bank The bank number to read from
