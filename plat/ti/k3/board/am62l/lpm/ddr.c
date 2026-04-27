@@ -99,6 +99,7 @@ typedef struct emif_handle_s {
 __wkupsramdata emif_handle_t Emifhandle;
 __wkupsramdata uint32_t ddrss_save_restore[NUM_ALL_DDR_REG];
 __wkupsramdata bool ddrss_is_fsp_supported;
+__wkupsramdata uint32_t sdram_val;
 __wkupsramdata uint32_t dram_class;
 
 /* poll_for_init_completion - Sub-routine to poll for init completion */
@@ -258,21 +259,15 @@ __wkupsramfunc static int32_t execute_ddr_fsp_seq(uint8_t fsp_point)
 	return 0;
 }
 
-__wkupsramfunc void configure_sdram_region_idx(struct emif_handle_s *h, uint32_t sdram_idx, uint32_t region_idx)
+__wkupsramfunc void save_sdram_region_idx(struct emif_handle_s *h)
 {
-	uint32_t rd_val;
-
-	rd_val = mmio_read_32(h->ss_cfg_base_addr + CSL_EMIF_SSCFG_V2A_CTL_REG);
-	rd_val = (rd_val & 0xFFFFFC00);
-	rd_val = rd_val | (sdram_idx << 5) | (region_idx);
-	/* Programming the region_idx and sdram_idx fields for address mapping */
-	mmio_write_32((h->ss_cfg_base_addr + CSL_EMIF_SSCFG_V2A_CTL_REG), rd_val);
+	sdram_val = mmio_read_32(h->ss_cfg_base_addr + CSL_EMIF_SSCFG_V2A_CTL_REG);
 }
 
-__wkupsramfunc void sdram_region_idx_cfg(struct emif_handle_s *h)
+__wkupsramfunc void restore_sdram_region_idx(struct emif_handle_s *h)
 {
 	/* Programming the region_idx and sdram_idx fields for address mapping */
-	configure_sdram_region_idx(h, SDRAM_IDX, REGION_IDX);
+	mmio_write_32((h->ss_cfg_base_addr + CSL_EMIF_SSCFG_V2A_CTL_REG), sdram_val);
 }
 
 __wkupsramfunc void put_ddr_in_sr(bool enable)
@@ -391,6 +386,8 @@ __wkupsramfunc void save_ddr_registers(struct emif_handle_s *h)
 	uint32_t DDR_PHY_CORE_REG_BASE = (h->ctl_cfg_base_addr) + DDRSS_PHY_CORE_REGISTER_BLOCK_OFFS;
 
 	ddrss_is_fsp_supported = 0;
+
+	save_sdram_region_idx(h);
 
 	/* Update the PI_INIT_WORK_FREQ and INIT_FREQ on the basis of current frequency set */
 	current_freq_set = ((mmio_read_32(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(153))) >> DDR_MEM_ACTIVE_FREQ_SHIFT) & DDR_MEM_ACTIVE_FREQ_MASK;
@@ -548,9 +545,8 @@ __wkupsramfunc void ddr_save_restore_exit_sequence(struct emif_handle_s *h)
 
 	uint32_t lp_status;
 
-	/* Restore the default values from the reg_config file */
-	sdram_region_idx_cfg(h);
-
+	restore_sdram_region_idx(h);
+	
 	/* Write back the copied registers */
 	restore_ddr_registers(h);
 
