@@ -19,13 +19,11 @@
 /* Register block CTL (CTL_0-CTL_422) offset, total and field values */
 #define CTLCFG_DENALI_CTL_(x)				((x) << 2U)
 #define NUM_DDR_CTL_REG					423U
-#define DENALI_CTL_00_DATA				0x00000B00U
 /* Register block PI (PI_0-PI_344) offset, total and field values */
 #define DDRSS_PI_REGISTER_BLOCK_OFFS			0x2000U
 #define CTLCFG_DENALI_PI_(x) \
 	(((x) << 2U) + DDRSS_PI_REGISTER_BLOCK_OFFS)
 #define NUM_DDR_PI_REG					345U
-#define DENALI_PI_00_DATA				0x00000B00U
 /* Register block Data_Slice_0 (or PHY Register block offset PHY_0-PHY_125) */
 #define DDRSS_DATA_SLICE_0_REGISTER_BLOCK_OFFS		0x4000U
 #define CTLCFG_DENALI_PHY_(x) \
@@ -59,6 +57,7 @@
 #define LP_MODE_LONG_SELF_REFRESH_PHY_CTRL		0x51U
 #define LP_MODE_LONG_SELF_REFRESH_EXIT			0x2U
 #define LPDDR4_DRAM_CLASS_REG_VALUE			0xBU
+#define DDR4_DRAM_CLASS_REG_VALUE			0xAU
 #define CTL_BUSY_BIT					BIT(0)
 #define INT_STATUS_DFS_OFFSET				16U
 /* DFS (Dynamic Frequency Scaling) interrupt status bits in CTL_342 register */
@@ -72,6 +71,8 @@
 							 DFS_INT_SW_IGNORED | DFS_INT_SW_TIMEOUT)
 #define DDR_MEM_ACTIVE_FREQ_SHIFT			8U
 #define DDR_MEM_ACTIVE_FREQ_MASK			0x1FU
+#define DDR_MEM_CLASS_SHIFT				8U
+#define DDR_MEM_CLASS_MASK				0xF00U
 
 /* WKUP CTRL MMR Base and register configuration values */
 #define WKUP_CTRL_MMR_SEC_4_BASE			(0x43040000UL)
@@ -103,6 +104,7 @@ typedef struct emif_handle_s {
 __wkupsramdata emif_handle_t Emifhandle;
 __wkupsramdata uint32_t ddrss_save_restore[NUM_ALL_DDR_REG];
 __wkupsramdata bool ddrss_is_fsp_supported;
+__wkupsramdata uint32_t dram_class;
 
 /**
  * @brief Poll for init completion
@@ -383,7 +385,7 @@ __wkupsramfunc static void start_PI_CTL_init(struct emif_handle_s *h)
 {
 	uint32_t wr_init_val;
 
-	wr_init_val = ((LPDDR4_DRAM_CLASS_REG_VALUE << 8) | 0x1);
+	wr_init_val = ((dram_class << DDR_MEM_CLASS_SHIFT) | 0x1);
 	/* Set START bit in register for PI module */
 	mmio_write_32(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(0), wr_init_val);
 	volatile int i = 0;
@@ -427,6 +429,9 @@ __wkupsramfunc static void save_ddr_registers(struct emif_handle_s *h)
 	current_freq_set = ((mmio_read_32(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(153))) >> DDR_MEM_ACTIVE_FREQ_SHIFT) & DDR_MEM_ACTIVE_FREQ_MASK;
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(11), current_freq_set, 5, 0);
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_CTL_(178), current_freq_set, 2, 0);
+
+	/* Save the class of DRAM */
+	dram_class = ((mmio_read_32(DDR_CTL_REG_BASE) & DDR_MEM_CLASS_MASK)) >> DDR_MEM_CLASS_SHIFT;
 
 	j = 0;
 	for (i = 0; i < NUM_DDR_CTL_REG; i++, j++) {
@@ -517,13 +522,13 @@ __wkupsramfunc static void restore_ddr_registers(struct emif_handle_s *h)
 	uint32_t DDR_PHY_CORE_REG_BASE =
 		(h->ctl_cfg_base_addr) + DDRSS_PHY_CORE_REGISTER_BLOCK_OFFS;
 
-	mmio_write_32(DDR_CTL_REG_BASE + CTLCFG_DENALI_CTL_(0), DENALI_CTL_00_DATA);
+	mmio_write_32(DDR_CTL_REG_BASE + CTLCFG_DENALI_CTL_(0), dram_class << DDR_MEM_CLASS_SHIFT);
 	/* Skip the first CTL register write */
 	j = 1;
 	for (int i = 1; i < NUM_DDR_CTL_REG; i++, j++) {
 		mmio_write_32(DDR_CTL_REG_BASE + i * 4, ddrss_save_restore[j]);
 	}
-	mmio_write_32(DDR_CTL_REG_BASE + CTLCFG_DENALI_PI_(0), DENALI_PI_00_DATA);
+	mmio_write_32(DDR_CTL_REG_BASE + CTLCFG_DENALI_PI_(0), dram_class << DDR_MEM_CLASS_SHIFT);
 	/* Skip the first PI register write */
 	j++;
 	for (int i = 1; i < NUM_DDR_PI_REG; i++, j++) {
@@ -641,15 +646,26 @@ __wkupsramfunc static void ddr_deep_sleep_resume_sequence(struct emif_handle_s *
 __wkupsramfunc static void enter_lpm_self_refresh(struct emif_handle_s *h)
 {
 	uint32_t lp_status = 0;
-	/* Program Self Refresh mode */
+	uint32_t lp_status_expected = 0;
+
+	/* Program Self Refresh mode Self refresh long with memory clock gating */
 	mmio_write_32(h->ctl_cfg_base_addr + CTLCFG_DENALI_CTL_(158),
-		      (LP_MODE_LONG_SELF_REFRESH << 8));
+			(LP_MODE_LONG_SELF_REFRESH << 8));
+
+	if (dram_class == LPDDR4_DRAM_CLASS_REG_VALUE) {
+		lp_status_expected = 0x4EU;
+	} else if (dram_class == DDR4_DRAM_CLASS_REG_VALUE) {
+		lp_status_expected = 0x49U;
+	} else {
+		/* Invalid */
+		lp_status_expected = 0xFFU;
+	}
 
 	/* Poll for Self Refresh Mode change */
-	while (lp_status != 0x4E) {
+	while (lp_status != lp_status_expected) {
 		lp_status = ((mmio_read_32(h->ctl_cfg_base_addr +
-					    CTLCFG_DENALI_CTL_(167)) &
-			      0x7F00) >> 8);
+				CTLCFG_DENALI_CTL_(167)) &
+				0x7F00) >> 8);
 	}
 }
 
