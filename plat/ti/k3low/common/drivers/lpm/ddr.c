@@ -597,13 +597,22 @@ __wkupsramfunc static void ddr_deep_sleep_resume_sequence(struct emif_handle_s *
 	/* Write back the copied registers */
 	restore_ddr_registers(h);
 
+	/* Configure PHY and PI settings for resume sequence */
+	/* PHY_1306: Set DFI input 0 - configures DFI interface input settings */
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PHY_(1306), 0x1, 1, 0);
+	/* PI_4: Disable PI_INIT_LVL_EN - disable initialization leveling */
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(4), 0x0, 1, 0);
+	/* CTL_20: Enable PHY_INDEP_TRAIN_MODE - enable independent PHY training mode */
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_CTL_(20), 0x1, 1, 24);
+	/* CTL_21: Enable PHY_INDEP_INIT_MODE - enable independent PHY initialization mode */
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_CTL_(21), 0x1, 1, 8);
+	/* PI_138: Enable PI_DLL_RST - enable DLL reset */
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(138), 0x1, 1, 0);
+	/* CTL_106: Disable PWRUP_SREFRESH_EXIT - disable power-up self-refresh exit */
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_CTL_(106), 0x0, 1, 0);
+	/* PI_134: Enable PI_PWRUP_SREFRESH_EXIT - enable PI power-up self-refresh exit */
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(134), 0x1, 1, 8);
+	/* PI_138: Enable PI_DRAM_INIT_EN - enable DRAM initialization */
 	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(138), 0x1, 1, 8);
 
 	/* De-asserting data retention pin and wake Control bits */
@@ -622,47 +631,6 @@ __wkupsramfunc static void ddr_deep_sleep_resume_sequence(struct emif_handle_s *
 
 	/* Wait for INIT_DONE interrupt */
 	poll_for_init_completion(h);
-
-	/* dfi_phymstr_cs_state_r = 0, dfi_phymstr_state_sel_r = 0, and
-	 * PI_SELF_REFRESH_EN = 1 to enable self-refresh during training
-	 * since PI does not send refresh commands during CA leveling
-	 */
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(6), 0x1, 1, 0);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(6), 0x1, 1, 8);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(133), 0x1, 1, 24);
-
-	/* LPDDR4 PI sequence */
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(23), 0x1, 1, 24);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(33), 0x1, 1, 24);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(33), 0x1, 1, 16);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(67), 0x1, 1, 8);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(181), 0x0, 2, 16);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(181), 0x1, 2, 24);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(182), 0x1, 2, 0);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(188), 0x0, 2, 24);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(189), 0x0, 2, 8);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(189), 0x1, 2, 24);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(188), 0x0, 2, 16);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(189), 0x0, 2, 0);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(189), 0x1, 2, 16);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(190), 0x0, 2, 24);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(191), 0x0, 2, 24);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(192), 0x0, 2, 24);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(191), 0x0, 2, 16);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(192), 0x0, 2, 16);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(193), 0x0, 2, 16);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(191), 0x0, 2, 8);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(192), 0x0, 2, 8);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(193), 0x0, 2, 8);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(191), 0x0, 2, 0);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(192), 0x0, 2, 0);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(193), 0x0, 2, 0);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(199), 0x0, 2, 0);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(199), 0x0, 2, 8);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(199), 0x0, 2, 16);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(223), 0x0, 2, 8);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(226), 0x0, 2, 8);
-	write_mmr_field(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(229), 0x1, 2, 8);
 }
 
 /**
