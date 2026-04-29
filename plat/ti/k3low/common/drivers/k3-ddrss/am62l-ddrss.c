@@ -11,12 +11,12 @@
 #include <arch_helpers.h>
 #include <common/bl_common.h>
 #include <common/debug.h>
-#include <libfdt.h>
 #include <lib/mmio.h>
 #include <lib/xlat_tables/xlat_tables_v2.h>
 #include <platform_def.h>
 
 #include <k3_console.h>
+#include <am62lx_ddr_config.h>
 
 #include "cps_drv_lpddr4.h"
 #include "lpddr4_ctl_regs.h"
@@ -57,9 +57,6 @@ const uint32_t *lpddr4_ctl_data;
 const uint32_t *lpddr4_pi_data;
 const uint32_t *lpddr4_phy_data;
 
-/* set default DDR size to 2GB */
-uint64_t ddr_ram_size = UL(0x80000000);
-
 #define DDRSS_CTL_CFG 0x0f308000
 #define DDRSS_CTRL_MMR_L 0x43014000
 #define DDRSS_CTRL_MMR 0x43040000
@@ -85,8 +82,6 @@ uint64_t ddr_ram_size = UL(0x80000000);
 #define DDRSS_V2A_CTL_REG_SDRAM_IDX_CALC(x) ((log2(x) - 16) << 5)
 #define DDRSS_V2A_CTL_REG_SDRAM_IDX_MASK (~(0x1F << 0x5))
 #define DDRSS_V2A_CTL_REG_REGION_IDX_MASK (~(0X1F))
-
-#define DDRSS_PLL_FREQUENCY_0 25000000
 
 #define DDR32SS_PMCTRL (0x1000U)
 #define CANUART_WAKE_OFF_MODE_STAT (0x1318U)
@@ -148,8 +143,6 @@ uint64_t ddr_ram_size = UL(0x80000000);
 			offset = offset * 10 + (*i - '0'); } \
 } while (0)
 
-extern void *dtb_array;
-void *dtb = &dtb_array;
 
 static inline uint64_t log2(uint64_t n)
 {
@@ -412,110 +405,30 @@ int am62l_lpddr4_init(void)
 	volatile uint32_t val;
 	uint32_t offset = 0;
 	uint32_t regval;
-	int node;
-	uint32_t *prop;
-	int prop_length;
-	fdt32_t prop_val;
-	uint64_t reg_val;
-	int num_banks = 1;
 	uint32_t sdram_idx;
 	uint32_t v2a_ctl_reg;
+	uint64_t ddr_ram_size;
 	int ret;
 	bool restore;
 
-	node = fdt_node_offset_by_compatible(dtb, -1, "ti,am62l-ddrss");
+	ddrss.ddr_fhs_cnt = am62lx_ddr_cfg.ddr_fhs_cnt;
+	ddrss.ddr_freq0   = am62lx_ddr_cfg.ddr_freq0;
+	ddrss.ddr_freq1   = am62lx_ddr_cfg.ddr_freq1;
+	ddrss.ddr_freq2   = am62lx_ddr_cfg.ddr_freq2;
+	ddr_ram_size      = AM62L_DDR_RAM_SIZE;
 
-	if (node < 0) {
-		ERROR("no ddr node found\n");
-		return -ENODEV;
-	}
-
-	prop = (void *) fdt_getprop(dtb, node, "ti,ddr-fhs-cnt", &prop_length);
-	if (prop) {
-		prop_val = (fdt32_t) *prop;
-		ddrss.ddr_fhs_cnt = fdt32_to_cpu(prop_val);
-	} else {
-		ERROR("no ddr-fhs-cnt found\n");
-		return -EINVAL;
-	}
-
-	prop = (void *) fdt_getprop(dtb, node, "ti,ddr-freq0", &prop_length);
-	if (prop) {
-		prop_val = (fdt32_t) *prop;
-		ddrss.ddr_freq0 = fdt32_to_cpu(prop_val);
-	} else {
-		ddrss.ddr_freq0 = DDRSS_PLL_FREQUENCY_0;
-	}
-
-	prop = (void *) fdt_getprop(dtb, node, "ti,ddr-freq1", &prop_length);
-	if (prop) {
-		prop_val = (fdt32_t) *prop;
-		ddrss.ddr_freq1 = fdt32_to_cpu(prop_val);
-	}
-
-	prop = (void *) fdt_getprop(dtb, node, "ti,ddr-freq2", &prop_length);
-	if (prop) {
-		prop_val = (fdt32_t) *prop;
-		ddrss.ddr_freq2 = fdt32_to_cpu(prop_val);
-	}
-
-	prop = (void *) fdt_getprop(dtb, node, "ti,ctl-data", &prop_length);
-	if (prop) {
-		lpddr4_ctl_data = prop;
-	} else {
-		ERROR("no ti,ctl-data not found\n");
-		return -EINVAL;
-	}
-
-	prop = (void *) fdt_getprop(dtb, node, "ti,pi-data", &prop_length);
-	if (prop) {
-		lpddr4_pi_data = prop;
-	} else {
-		ERROR("no ti,pi-data not found\n");
-		return -EINVAL;
-	}
-
-	prop = (void *) fdt_getprop(dtb, node, "ti,phy-data", &prop_length);
-	if (prop) {
-		lpddr4_phy_data = prop;
-	} else {
-		ERROR("no ti,phy-data not found\n");
-		return -EINVAL;
-	}
-
-	regval = *((uint32_t *)lpddr4_ctl_data);
-	regval = (uint32_t) fdt32_to_cpu(regval);
-	ddrss.dram_class = CPS_FLD_READ(LPDDR4__DRAM_CLASS__FLD, regval);
+	ddrss.dram_class = CPS_FLD_READ(LPDDR4__DRAM_CLASS__FLD,
+					am62lx_ddr_cfg.ctl_data[0]);
 	NOTICE("BL1: dram_class: %d\n", ddrss.dram_class);
+	NOTICE("BL1: dram_size: 0x%" PRIx64 "\n", ddr_ram_size);
 
-	/* Find 'memory' node */
-	node = fdt_node_offset_by_prop_value(dtb, -1, "device_type", "memory", sizeof("memory"));
-	INFO("memory node =0x%x\n", node);
-	if (node < 0) {
-		WARN("FCONF: Unable to locate 'memory' node\n");
-		goto set_psc_def_pll;
-	}
-
-	prop = (void *) fdt_getprop(dtb, node, "reg", &prop_length);
-	if (prop == NULL) {
-		WARN("failed to read 'reg' property\n");
-		goto set_psc_def_pll;
-	}
-
-	num_banks = prop_length / DRAM_ENTRY_SIZE;
-	ddr_ram_size = 0;
-	for (int i = 0; i < num_banks; i++) {
-		/* first property is bank base addess followed by bank size */
-		reg_val = fdt32_to_cpu(prop[i*4+2]);
-		reg_val = (reg_val << 32) | fdt32_to_cpu(prop[i*4+3]);
-		ddr_ram_size += reg_val;
-	}
-
-set_psc_def_pll:
 	if (ddrss.dram_class == DENALI_CTL_0_DRAM_CLASS_LPDDR4)
-		ddrss_set_pll(ddrss.ddr_freq0);
+		ret = ddrss_set_pll(ddrss.ddr_freq0);
 	else
-		ddrss_set_pll(ddrss.ddr_freq1);
+		ret = ddrss_set_pll(ddrss.ddr_freq1);
+
+	if (ret != 0)
+		return ret;
 
 	/* Disable the DDR LPSCs to start in known state */
 	ret = set_main_psc_state(PD_DDR, LPSC_MAIN_DDR_DATA_ISO_N, PSC_PD_ON, PSC_MD_SWRESETDISABLE);
@@ -566,9 +479,12 @@ set_psc_def_pll:
 	INFO("lpddr4/ddr4: init done\n");
 
 	/* Configure DDR with config and control structures */
-	driverdt->writectlconfigex(pd, lpddr4_ctl_data, LPDDR4_INTR_CTL_REG_COUNT);
-	driverdt->writephyindepconfigex(pd, lpddr4_pi_data, LPDDR4_INTR_PHY_INDEP_REG_COUNT);
-	driverdt->writephyconfigex(pd, lpddr4_phy_data, LPDDR4_INTR_PHY_REG_COUNT);
+	driverdt->writectlconfigex(pd, am62lx_ddr_cfg.ctl_data,
+				   LPDDR4_INTR_CTL_REG_COUNT);
+	driverdt->writephyindepconfigex(pd, am62lx_ddr_cfg.pi_data,
+					LPDDR4_INTR_PHY_INDEP_REG_COUNT);
+	driverdt->writephyconfigex(pd, am62lx_ddr_cfg.phy_data,
+				   LPDDR4_INTR_PHY_REG_COUNT);
 
 	TH_OFFSET_FROM_REG(LPDDR4__START__REG, CTL_SHIFT, offset);
 	driverdt->readreg(pd, LPDDR4_CTL_REGS, offset, &regval);

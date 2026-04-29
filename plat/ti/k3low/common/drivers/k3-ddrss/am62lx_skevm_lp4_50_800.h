@@ -1,20 +1,27 @@
-// SPDX-License-Identifier: BSD-3-Clause
+/* SPDX-License-Identifier: BSD-3-Clause */
 /*
- * This file was generated with the
- * AM62Lx SysConfig DDR Configuration Tool for AM64x, AM625, AM623, AM62Ax, AM62Px, AM62Dx, AM62Lx v0.10.30
+ * AM62Lx SK-EVM LPDDR4 register initialisation values
+ *
+ * Generated with the AM62Lx SysConfig DDR Configuration Tool v0.10.30
  * Tue Mar 18 2025 15:30:11 GMT+0530 (India Standard Time)
  * DDR Type: LPDDR4
  * F0 = 50MHz    F1 = NA     F2 = 800MHz
  * Density (per channel): 16Gb
  * Write DBI: Enable
  * Number of Ranks: 1
-*/
+ *
+ * Copyright (C) 2026 Texas Instruments Incorporated - https://www.ti.com/
+ */
 
-#define DDRSS_PLL_FHS_CNT 3
-#define DDRSS_PLL_FREQUENCY_1 400000000
-#define DDRSS_PLL_FREQUENCY_2 400000000
-#define DDRSS_SDRAM_IDX 15
-#define DDRSS_REGION_IDX 15
+#ifndef AM62LX_SKEVM_LP4_50_800_H
+#define AM62LX_SKEVM_LP4_50_800_H
+
+#define DDRSS_PLL_FREQUENCY_0		25000000
+#define DDRSS_PLL_FHS_CNT		3
+#define DDRSS_PLL_FREQUENCY_1		400000000
+#define DDRSS_PLL_FREQUENCY_2		400000000
+#define DDRSS_SDRAM_IDX			15
+#define DDRSS_REGION_IDX		15
 
 #define DDRSS_CTL_0_DATA 0x00000B00
 #define DDRSS_CTL_1_DATA 0x00000000
@@ -2190,3 +2197,5 @@
 #define DDRSS_PHY_1403_DATA 0x00018011
 #define DDRSS_PHY_1404_DATA 0x0089FF00
 #define DDRSS_PHY_1405_DATA 0x20040004
+
+#endif /* AM62LX_SKEVM_LP4_50_800_H */

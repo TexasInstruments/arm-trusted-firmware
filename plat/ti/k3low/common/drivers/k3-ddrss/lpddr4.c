@@ -10,7 +10,6 @@
 
 #include <common/bl_common.h>
 #include <common/debug.h>
-#include <libfdt.h>
 
 #include "cps_drv_lpddr4.h"
 #include "lpddr4.h"
@@ -306,19 +305,17 @@ uint32_t lpddr4_writectlconfigex(const lpddr4_privatedata *pd, const uint32_t re
 {
 	uint32_t result = 0U;
 	uint32_t aindex;
-	uint32_t reg_val;
 
 	if ((pd == NULL) || (regvalues == (uint32_t *)NULL)) {
 		return EINVAL;
 	}
 
-	/* Iterate over the config data to convert from device node
-	 * format to CPU format.
-	 */
 	for (aindex = 0; aindex < regcount; aindex++) {
-		reg_val = fdt32_to_cpu(regvalues[aindex]);
-		result = (uint32_t)lpddr4_writereg(pd, LPDDR4_CTL_REGS, aindex,
-							   reg_val);
+		result = lpddr4_writereg(pd, LPDDR4_CTL_REGS, aindex,
+					    regvalues[aindex]);
+		if (result != 0U) {
+			return result;
+		}
 	}
 
 	return result;
@@ -344,19 +341,17 @@ uint32_t lpddr4_writephyindepconfigex(const lpddr4_privatedata *pd, const uint32
 {
 	uint32_t result = 0U;
 	uint32_t aindex;
-	uint32_t reg_val;
 
 	if ((pd == NULL) || (regvalues == (uint32_t *)NULL)) {
 		return EINVAL;
 	}
 
-	/* Iterate over the config data to convert from device node
-	 * format to CPU format.
-	 */
 	for (aindex = 0; aindex < regcount; aindex++) {
-		reg_val = fdt32_to_cpu(regvalues[aindex]);
-		result = (uint32_t)lpddr4_writereg(pd, LPDDR4_PHY_INDEP_REGS, aindex,
-							   reg_val);
+		result = lpddr4_writereg(pd, LPDDR4_PHY_INDEP_REGS, aindex,
+					    regvalues[aindex]);
+		if (result != 0U) {
+			return result;
+		}
 	}
 
 	return result;
@@ -382,19 +377,17 @@ uint32_t lpddr4_writephyconfigex(const lpddr4_privatedata *pd, const uint32_t re
 {
 	uint32_t result = 0U;
 	uint32_t aindex;
-	uint32_t reg_val;
 
 	if ((pd == NULL) || (regvalues == (uint32_t *)NULL)) {
 		return EINVAL;
 	}
 
-	/* Iterate over the config data to convert from device node
-	 * format to CPU format.
-	 */
 	for (aindex = 0; aindex < regcount; aindex++) {
-		reg_val = fdt32_to_cpu(regvalues[aindex]);
-		result = (uint32_t)lpddr4_writereg(pd, LPDDR4_PHY_REGS, aindex,
-							   reg_val);
+		result = lpddr4_writereg(pd, LPDDR4_PHY_REGS, aindex,
+					    regvalues[aindex]);
+		if (result != 0U) {
+			return result;
+		}
 	}
 
 	return result;

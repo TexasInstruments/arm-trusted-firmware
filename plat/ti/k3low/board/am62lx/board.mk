@@ -4,7 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
-DTB_FILE_NAME ?= k3-am62l-evm.dtb
+DDR_CFG_HEADER          ?=      am62lx_skevm_lp4_50_800.h
+$(eval $(call add_define_val,DDR_CFG_HEADER,'"$(DDR_CFG_HEADER)"'))
+
+AM62L_DDR_RAM_SIZE      ?=      0x80000000ULL
+$(eval $(call add_define,AM62L_DDR_RAM_SIZE))
 
 BL32_BASE ?= 0x80200000
 $(eval $(call add_define,BL32_BASE))

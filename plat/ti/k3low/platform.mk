@@ -39,23 +39,7 @@ define add_tfcflag
 	TF_CFLAGS_aarch64	+= -Wno-address-of-packed-member
 endef
 
-define add_asflag
-	ASFLAGS 		+= -DBL1_DTB_PATH=\"${BUILD_PLAT}/fdts/$(DTB_FILE_NAME)\"
-	ASFLAGS 		+= -DDTB_ARRAY_SIZE=9400
-endef
-
-define add_dtb
-am62l_bl1: bl1 dtbs
-	./${PLAT_PATH}/common/am62l-bl1-dtb.sh ${BUILD_PLAT}/bl1/bl1.elf ${BUILD_PLAT}/fdts/$(DTB_FILE_NAME) ${BUILD_PLAT}/bl1.bin
-
-all: am62l_bl1
-endef
-
 $(eval $(call add_tfcflag))
-$(eval $(call add_asflag))
-$(eval $(call add_dtb))
-
-FDT_SOURCES	:= fdts/$(patsubst %.dtb,%.dts,$(DTB_FILE_NAME)) \
 
 PLAT_INCLUDES		+=	\
 				-I${PLAT_PATH}/common/drivers/k3-ddrss	\
@@ -70,7 +54,7 @@ K3_LPDDR4_SOURCES	+= 	\
 				${PLAT_PATH}/common/drivers/k3-ddrss/lpddr4.c \
 				${PLAT_PATH}/common/drivers/k3-ddrss/lpddr4_16bit_ctl_regs_rw_masks.c \
 				${PLAT_PATH}/common/drivers/k3-ddrss/lpddr4_16bit.c \
-				${PLAT_PATH}/common/am62l-ddr-dtb.S \
+				${PLAT_PATH}/common/drivers/k3-ddrss/am62lx_ddr_config.c \
 
 
 BL1_SOURCES		+=	\
