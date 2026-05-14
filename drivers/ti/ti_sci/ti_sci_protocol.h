@@ -60,6 +60,9 @@
 #define TI_SCI_MSG_FWL_GET		0x9001
 #define TI_SCI_MSG_FWL_CHANGE_OWNER	0x9002
 
+/* Runtime Debug Messages */
+#define TISCI_MSG_GET_SOC_UID		0x9021
+
 /* OTP MMR messages */
 #define TISCI_MSG_READ_OTP_MMR		0x9022
 #define TISCI_MSG_WRITE_OTP_MMR 	0x9023
@@ -1138,6 +1141,11 @@ struct tisci_msg_set_otp_bootmode_req {
  */
 struct tisci_msg_set_otp_bootmode_resp {
 	struct ti_sci_msg_hdr hdr;
+} __packed;
+
+struct tisci_msg_generic_sip_req_resp {
+	struct ti_sci_msg_hdr hdr;
+	uint8_t msg[TI_SCI_MAX_MESSAGE_SIZE - sizeof(struct ti_sci_msg_hdr)];
 } __packed;
 
 #endif /* TI_SCI_PROTOCOL_H */

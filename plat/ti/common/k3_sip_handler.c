@@ -1,8 +1,10 @@
 /*
- * Copyright (c) 2025, Texas Instruments. All rights reserved.
+ * Copyright (c) 2025-2026, Texas Instruments. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
+
+#include <errno.h>
 
 #include <ti_platform_defs.h>
 #include <arch_helpers.h>
@@ -68,6 +70,100 @@ int ti_fuse_writebuff_handler(u_register_t x1)
 		ERROR("Invalid TISCI ID (0x%x)\n", k3_fuse_buff->tisci_id);
 		return SMC_UNK;
 	}
+
+	return 0;
+}
+
+/*
+ * This is a list of TI_SCI messages which are exposed to non-secure users
+ * through this SiP service. The SiP call with any other message type will
+ * return -EPERM.
+ * Expand the list as necessary.
+ */
+static const uint16_t allowed_sip_ti_sci_msg_types[] = {
+	/* General */
+	TI_SCI_MSG_VERSION,
+
+	/* Security - Processor Boot */
+	TISCI_MSG_PROC_AUTH_BOOT_IMAGE,
+
+	/* Security - Runtime Debug */
+	TISCI_MSG_GET_SOC_UID,
+};
+
+static bool ti_sip_is_ti_sci_call_allowed(uint16_t msg_type)
+{
+	for (int i = 0; i < ARRAY_SIZE(allowed_sip_ti_sci_msg_types); ++i) {
+		if (msg_type == allowed_sip_ti_sci_msg_types[i])
+			return true;
+	}
+	return false;
+}
+
+/**
+ * ti_sci_xfer_sip_handler - Forward a TISCI message from non-secure world via SiP SMC.
+ *
+ * @tx_size:     Size of the transmit message in bytes. Must be in the range
+ *               [sizeof(TISCI header), TI_SCI_MAX_MESSAGE_SIZE].
+ * @rx_size:     Size of the receive message in bytes. Must be in the range
+ *               [sizeof(TISCI header), TI_SCI_MAX_MESSAGE_SIZE].
+ * @msg:         The message itself, serialized from the 64-bit SMC registers.
+ *               The caller needs to ensure that the length of this buffer is at
+ *               least tx_size in length.
+ * @res:         Buffer to store the response. Response is passed on to the caller
+ *               through this buffer. Hence it is the responsibility of the caller
+ *               to ensure the size of this buffer is at least rx_size.
+ *
+ * TF-A copies the message to a local stack buffer, does the TISCI xfer, then
+ * copies the response back to the caller's buffer.
+ *
+ * Return: 0 on success, negative errno on error.
+ */
+int ti_sci_xfer_sip_handler(size_t tx_size, size_t rx_size,
+			    uint64_t *msg, uint8_t *res)
+{
+	uint8_t req[TI_SCI_MAX_MESSAGE_SIZE];
+	struct ti_sci_msg_hdr *hdr;
+	int ret;
+
+	/*
+	 * The message header on non-secure host does not contain
+	 * secure header. This is prepended in the TF-A. Add its
+	 * size to msg size.
+	 */
+	size_t secure_tx_size = tx_size + sizeof(struct ti_sci_secure_msg_hdr);
+	size_t secure_rx_size = rx_size + sizeof(struct ti_sci_secure_msg_hdr);
+
+	if (secure_tx_size > TI_SCI_MAX_MESSAGE_SIZE ||
+	    secure_tx_size < sizeof(struct ti_sci_msg_hdr) ||
+	    secure_rx_size > TI_SCI_MAX_MESSAGE_SIZE ||
+	    secure_rx_size < sizeof(struct ti_sci_msg_hdr)) {
+		ERROR("ERROR: Invalid TISCI message size\n");
+		return -ERANGE;
+	}
+
+	/* Leave space for secure header at the beginning. */
+	memcpy(req + sizeof(struct ti_sci_secure_msg_hdr), msg, tx_size);
+
+	hdr = (struct ti_sci_msg_hdr *)req;
+
+	if (!ti_sip_is_ti_sci_call_allowed(hdr->type)) {
+		ERROR("TISCI Message %u is not allowed/supported\n",
+		      hdr->type);
+		return -EPERM;
+	}
+
+	ret = ti_sci_xfer_sip(req, secure_tx_size, secure_rx_size);
+	if (ret != 0) {
+		ERROR("Error: TISCI transfer failed (%d)\n", ret);
+		return ret;
+	}
+
+	/*
+	 * Write response back to the caller's buffer. Remove secure header as
+	 * non-secure hosts do not expect it.
+	 */
+	memcpy(res, req + sizeof(struct ti_sci_secure_msg_hdr), rx_size);
 
 	return 0;
 }

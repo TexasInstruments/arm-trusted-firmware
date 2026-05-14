@@ -2179,6 +2179,56 @@ int ti_sci_write_otp(uint8_t bank, uint32_t word, uint32_t val_in, uint32_t mask
 }
 
 /**
+ * ti_sci_xfer_sip() - Forward a TISCI message on behalf of non-secure world
+ *
+ * @req:		Full TISCI transmit message (header + payload) as
+ *			received from the non-secure caller. The message size
+ *			should be in the range
+ *			[sizeof(struct ti_sci_msg_hdr), TI_SCI_MAX_MESSAGE_SIZE]
+ *                      The caller must ensure the req buffer is at least as
+ *			large as MAX(tx_size, rx_size) as the received response
+ *			is also stored in the same buffer in-place.
+ * @tx_size:		Size of tx request in bytes.
+ * @rx_size:		Size of rx response in bytes.
+ *
+ * Builds a fresh TISCI header using ti_sci_setup_one_xfer(), copies the
+ * caller's payload verbatim, then calls ti_sci_do_xfer() which handles
+ * locking, send, and receive.
+ *
+ * Return: 0 on success, else appropriate error code.
+ */
+int ti_sci_xfer_sip(void *req, size_t tx_size, size_t rx_size)
+{
+	struct tisci_msg_generic_sip_req_resp *msg;
+	const struct ti_sci_msg_hdr *in_hdr;
+	struct ti_sci_xfer xfer;
+	int ret;
+
+	if ((req == NULL))
+		return -EINVAL;
+
+	msg = (struct tisci_msg_generic_sip_req_resp *)req;
+	in_hdr = &msg->hdr;
+
+	/*
+	 * Allocate a fresh xfer using TF-A's own sequence counter so that
+	 * ti_sci_get_response() can match the response correctly.
+	 * Catch the response in-place in the same msg buffer.
+	 */
+	ret = ti_sci_setup_one_xfer(in_hdr->type, in_hdr->flags,
+				    msg, tx_size, msg, rx_size,
+				    &xfer);
+	if (ret != 0)
+		return ret;
+
+	ret = ti_sci_do_xfer(&xfer);
+	if (ret != 0)
+		return ret;
+
+	return ret;
+}
+
+/**
  * ti_sci_set_otp_bootmode() - Set OTP boot mode
  *
  * @param index The OTP index to set the boot mode for.

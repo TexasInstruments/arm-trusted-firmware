@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include <common/debug.h>
 #include <common/runtime_svc.h>
@@ -35,6 +36,13 @@ uintptr_t sip_smc_handler(uint32_t smc_fid,
 			  u_register_t flags)
 {
 	int ret = SMC_UNK;
+	u_register_t x5, x6, x7, x8, x9;
+
+	x5 = SMC_GET_GP(handle, CTX_GPREG_X5);
+	x6 = SMC_GET_GP(handle, CTX_GPREG_X6);
+	x7 = SMC_GET_GP(handle, CTX_GPREG_X7);
+	x8 = SMC_GET_GP(handle, CTX_GPREG_X8);
+	x9 = SMC_GET_GP(handle, CTX_GPREG_X9);
 
 	switch (smc_fid) {
 	case SIP_SVC_CALL_COUNT:
@@ -96,6 +104,21 @@ uintptr_t sip_smc_handler(uint32_t smc_fid,
 	case K3_SIP_GET_WKUP_REASON:
 		SMC_RET4(handle, 0, k3low_get_lpm_mode(), k3low_get_wakeup_src(),
 			 k3low_get_wakeup_pin());
+
+	case K3_SIP_TISCI_XFER:
+		{
+			size_t tx_size = (size_t)x1;
+			size_t rx_size = (size_t)x2;
+			uint64_t msg[] = { x3, x4, x5, x6, x7, x8, x9 };
+			uint64_t res[DIV_ROUND_UP_2EVAL(TI_SCI_MAX_MESSAGE_SIZE, sizeof(uint64_t))];
+
+			ret = ti_sci_xfer_sip_handler(tx_size, rx_size, msg, (uint8_t *)res);
+			if (ret)
+				SMC_RET1(handle, ret);
+
+			SMC_RET8(handle, ret, res[0], res[1], res[2],
+				 res[3], res[4], res[5], res[6]);
+		}
 
 	default:
 		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);

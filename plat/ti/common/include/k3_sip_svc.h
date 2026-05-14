@@ -18,16 +18,21 @@
 #define K3_SIP_OTP_WRITE        0xC2000001
 #define K3_SIP_OTP_READ         0xC2000002
 #define K3_SIP_GET_WKUP_REASON  0xC2000003
+#define K3_SIP_TISCI_XFER       0xC2000004
 
 /* TI SiP Service Calls version numbers */
 #define K3_SIP_SVC_VERSION_MAJOR	0x0
 #define K3_SIP_SVC_VERSION_MINOR	0x1
 
 /* Number of TI SiP Calls implemented */
-#define K3_COMMON_SIP_NUM_CALLS     0x7
+#define K3_COMMON_SIP_NUM_CALLS     0x8
 
 /* TI Fuse writebuff SMC handler */
 int ti_fuse_writebuff_handler(u_register_t x1);
+
+/* Generic TISCI proxy SMC handler */
+int ti_sci_xfer_sip_handler(size_t tx_size, size_t rx_size,
+			    uint64_t *msg, uint8_t *res);
 
 #endif /* K3_SIP_SVC_H */
 

@@ -12,6 +12,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /**
  * User exported structures.
@@ -47,6 +48,23 @@ struct ti_sci_msg_version {
  *
  **/
 int ti_sci_get_revision(struct ti_sci_msg_version *version);
+
+/**
+ * ti_sci_xfer_sip() - Forward a TISCI message on behalf of non-secure world
+ *
+ * @req:		Full TISCI transmit message (header + payload) as
+ *			received from the non-secure caller. The message size
+ *			should be in the range
+ *			[sizeof(struct ti_sci_msg_hdr), TI_SCI_MAX_MESSAGE_SIZE]
+ *			The caller must ensure the req buffer is at least as
+ *			large as MAX(tx_size, rx_size) as the received response
+ *			is also stored in the same buffer in-place.
+ * @tx_size:		Size of tx request in bytes.
+ * @rx_size:		Size of rx response in bytes.
+ *
+ * Return: 0 on success, else appropriate error code.
+ */
+int ti_sci_xfer_sip(void *req, size_t tx_size, size_t rx_size);
 
 /**
  * Device control operations
