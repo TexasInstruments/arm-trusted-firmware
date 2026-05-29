@@ -10,9 +10,18 @@
 
 /* DDR Subsystem configuration base address and field values */
 #define DDRSS0_SSCFG_BASE				(0xF300000UL)
-#define CSL_EMIF_SSCFG_V2A_CTL_REG			(0x00000020U)
-#define SDRAM_IDX					0xFU
-#define REGION_IDX					0xFU
+
+/* DDRSS Subsystem Configuration Registers (R/W registers) */
+#define DDRSS_SSCFG_SS_CTL_REG				(0x004U)
+#define DDRSS_SSCFG_V2A_CTL_MATCH_PRI_REGS_OFFS		(0x020U)
+#define NUM_DDRSS_SSCFG_V2A_CTL_MATCH_PRI_REGS		(8U)
+#define DDRSS_SSCFG_V2A_OLD_CMD_PRI_RAISE_REG		(0x05CU)
+#define DDRSS_SSCFG_V2A_BUS_TIMEOUT_REG			(0x09CU)
+#define DDRSS_SSCFG_V2A_INT_EN_SET_REG			(0x0A8U)
+#define DDRSS_SSCFG_PERF_CNT_SEL_REG			(0x100U)
+#define DDRSS_SSCFG_PHY_TEST_CTL_REGS_OFFS		(0x184U)
+#define NUM_DDRSS_SSCFG_PHY_TEST_CTL_REGS		(10U)
+#define DDRSS_SSCFG_PHY_TEST_CTL_12_REG			(0x1B0U)
 
 /* DDR Control system base address and field values */
 #define DDRSS0_CTRL_BASE				(0xF308000UL)
@@ -101,11 +110,28 @@ typedef struct emif_handle_s {
 	uint64_t		   ctl_cfg_base_addr;
 } emif_handle_t;
 
+/**
+ * @brief Structure to hold DDR subsystem configuration registers
+ *
+ * This structure defines all the DDRSS configuration registers that need to be
+ * saved and restored during suspend/resume operations.
+ */
+typedef struct {
+	uint32_t	ss_ctl_reg;
+	uint32_t	v2a_ctl_match_pri_regs[NUM_DDRSS_SSCFG_V2A_CTL_MATCH_PRI_REGS];
+	uint32_t	v2a_old_cmd_pri_raise_reg;
+	uint32_t	v2a_bus_timeout_reg;
+	uint32_t	v2a_int_en_set_reg;
+	uint32_t	perf_cnt_sel_reg;
+	uint32_t	phy_test_ctl_regs[NUM_DDRSS_SSCFG_PHY_TEST_CTL_REGS];
+	uint32_t	phy_test_ctl_12_reg;
+} ddrss_sscfg_regs_t;
+
 __wkupsramdata emif_handle_t Emifhandle;
 __wkupsramdata uint32_t ddrss_save_restore[NUM_ALL_DDR_REG];
 __wkupsramdata bool ddrss_is_fsp_supported;
-__wkupsramdata uint32_t sdram_val;
 __wkupsramdata uint32_t dram_class;
+__wkupsramdata ddrss_sscfg_regs_t ddrss_sscfg_regs;
 
 /**
  * @brief Poll for init completion
@@ -295,24 +321,86 @@ __wkupsramfunc static int32_t execute_ddr_fsp_seq(uint8_t fsp_point)
 }
 
 /**
- * @brief Save SDRAM and region index
+ * @brief Save SS config Registers
+ *
+ * This function saves all read/write subsystem configuration registers
  *
  * @param h Pointer to EMIF handle structure
  */
-__wkupsramfunc void save_sdram_region_idx(struct emif_handle_s *h)
+__wkupsramfunc static void save_ss_config_registers(struct emif_handle_s *h)
 {
-	sdram_val = mmio_read_32(h->ss_cfg_base_addr + CSL_EMIF_SSCFG_V2A_CTL_REG);
+	uint32_t base = h->ss_cfg_base_addr;
+	int i;
+
+	/* Save Subsystem Control Register */
+	ddrss_sscfg_regs.ss_ctl_reg = mmio_read_32(base + DDRSS_SSCFG_SS_CTL_REG);
+
+	/* Save VBUSM2AXI Control, Range Match and Priority Map Registers */
+	for (i = 0; i < NUM_DDRSS_SSCFG_V2A_CTL_MATCH_PRI_REGS; i++) {
+		ddrss_sscfg_regs.v2a_ctl_match_pri_regs[i] = mmio_read_32(base + DDRSS_SSCFG_V2A_CTL_MATCH_PRI_REGS_OFFS + (i * 4));
+	}
+
+	/* Save VBUSM2AXI Oldest Command Priority Raise Register */
+	ddrss_sscfg_regs.v2a_old_cmd_pri_raise_reg = mmio_read_32(base + DDRSS_SSCFG_V2A_OLD_CMD_PRI_RAISE_REG);
+
+	/* Save VBUSM2AXI Bus Timeout Register */
+	ddrss_sscfg_regs.v2a_bus_timeout_reg = mmio_read_32(base + DDRSS_SSCFG_V2A_BUS_TIMEOUT_REG);
+
+	/* Save VBUSM2AXI Interrupt Enable Register */
+	ddrss_sscfg_regs.v2a_int_en_set_reg = mmio_read_32(base + DDRSS_SSCFG_V2A_INT_EN_SET_REG);
+
+	/* Save Performance Counter Select Register */
+	ddrss_sscfg_regs.perf_cnt_sel_reg = mmio_read_32(base + DDRSS_SSCFG_PERF_CNT_SEL_REG);
+
+	/* Save PHY Test Control Registers 1-10 */
+	for (i = 0; i < NUM_DDRSS_SSCFG_PHY_TEST_CTL_REGS; i++) {
+		ddrss_sscfg_regs.phy_test_ctl_regs[i] = mmio_read_32(base + DDRSS_SSCFG_PHY_TEST_CTL_REGS_OFFS + (i * 4));
+	}
+
+	/* Save PHY Test Control Register 12 (0x1B0 - note: register 11 at 0x1AC is reserved) */
+	ddrss_sscfg_regs.phy_test_ctl_12_reg = mmio_read_32(base + DDRSS_SSCFG_PHY_TEST_CTL_12_REG);
 }
 
 /**
- * @brief Restore SDRAM and region index
+ * @brief Restore SS config Registers
+ *
+ * This function restores subsystem configuration registers that were
+ * previously saved by save_ss_config_registers().
  *
  * @param h Pointer to EMIF handle structure
  */
-__wkupsramfunc void restore_sdram_region_idx(struct emif_handle_s *h)
+__wkupsramfunc static void restore_ss_config_registers(struct emif_handle_s *h)
 {
-	/* Programming the region_idx and sdram_idx fields for address mapping */
-	mmio_write_32((h->ss_cfg_base_addr + CSL_EMIF_SSCFG_V2A_CTL_REG), sdram_val);
+	uint32_t base = h->ss_cfg_base_addr;
+	int i;
+
+	/* Restore Subsystem Control Register */
+	mmio_write_32(base + DDRSS_SSCFG_SS_CTL_REG, ddrss_sscfg_regs.ss_ctl_reg);
+
+	/* Restore VBUSM2AXI Control, Range Match and Priority Map Registers */
+	for (i = 0; i < NUM_DDRSS_SSCFG_V2A_CTL_MATCH_PRI_REGS; i++) {
+		mmio_write_32(base + DDRSS_SSCFG_V2A_CTL_MATCH_PRI_REGS_OFFS + (i * 4), ddrss_sscfg_regs.v2a_ctl_match_pri_regs[i]);
+	}
+
+	/* Restore VBUSM2AXI Oldest Command Priority Raise Register */
+	mmio_write_32(base + DDRSS_SSCFG_V2A_OLD_CMD_PRI_RAISE_REG, ddrss_sscfg_regs.v2a_old_cmd_pri_raise_reg);
+
+	/* Restore VBUSM2AXI Bus Timeout Register */
+	mmio_write_32(base + DDRSS_SSCFG_V2A_BUS_TIMEOUT_REG, ddrss_sscfg_regs.v2a_bus_timeout_reg);
+
+	/* Restore VBUSM2AXI Interrupt Enable Register */
+	mmio_write_32(base + DDRSS_SSCFG_V2A_INT_EN_SET_REG, ddrss_sscfg_regs.v2a_int_en_set_reg);
+
+	/* Restore Performance Counter Select Register */
+	mmio_write_32(base + DDRSS_SSCFG_PERF_CNT_SEL_REG, ddrss_sscfg_regs.perf_cnt_sel_reg);
+
+	/* Restore PHY Test Control Registers 1-10 */
+	for (i = 0; i < NUM_DDRSS_SSCFG_PHY_TEST_CTL_REGS; i++) {
+		mmio_write_32(base + DDRSS_SSCFG_PHY_TEST_CTL_REGS_OFFS + (i * 4), ddrss_sscfg_regs.phy_test_ctl_regs[i]);
+	}
+
+	/* Restore PHY Test Control Register 12 (0x1B0 - note: register 11 at 0x1AC is reserved) */
+	mmio_write_32(base + DDRSS_SSCFG_PHY_TEST_CTL_12_REG, ddrss_sscfg_regs.phy_test_ctl_12_reg);
 }
 
 __wkupsramfunc int32_t k3low_put_ddr_in_rtc_lpm(void)
@@ -416,7 +504,7 @@ __wkupsramfunc static void save_ddr_registers(struct emif_handle_s *h)
 
 	ddrss_is_fsp_supported = 0;
 
-	save_sdram_region_idx(h);
+	save_ss_config_registers(h);
 
 	/* Update the PI_INIT_WORK_FREQ and INIT_FREQ on the basis of current frequency set */
 	current_freq_set = ((mmio_read_32(h->ctl_cfg_base_addr + CTLCFG_DENALI_PI_(153))) >> DDR_MEM_ACTIVE_FREQ_SHIFT) & DDR_MEM_ACTIVE_FREQ_MASK;
@@ -589,7 +677,7 @@ __wkupsramfunc static void ddr_deep_sleep_resume_sequence(struct emif_handle_s *
 {
 	uint32_t lp_status;
 
-	restore_sdram_region_idx(h);
+	restore_ss_config_registers(h);
 
 	/* Write back the copied registers */
 	restore_ddr_registers(h);
