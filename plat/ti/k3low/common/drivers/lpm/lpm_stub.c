@@ -104,6 +104,7 @@ __wkupsramdata uint8_t main_pll0_hsdivs_to_disable[] = {2, 3, 4, 5, 6, 7, 9};
 __wkupsramdata int num_main_plls_save_rstr = 3;
 __wkupsramdata uint8_t usb0_state;
 __wkupsramdata uint8_t usb1_state;
+__wkupsramdata uint8_t lpm_mode;
 
 extern uint32_t k3low_lpm_switch_stack(uintptr_t jump, uintptr_t stack, uint32_t arg);
 static void k3_lpm_jump_to_stub(uint32_t mode);
@@ -341,10 +342,18 @@ __wkupsramfunc static int32_t restore_main_pll(void)
 	int i;
 	int32_t ret = 0;
 
-	for (i = 0; i < num_main_plls_save_rstr; i++) {
-		ret = k3low_pll_restore(main_plls_save_rstr[i]);
-		if (ret != 0) {
-			return ret;
+	if (lpm_mode == TI_K3_SLEEP_MODE_DSS_PLUS_DEEP_SLEEP) {
+		k3low_pll_restore(&main_pll8);
+
+		/* Restore HSDIV0 frequency value to original value */
+		k3low_pll_program_hsdiv(&main_pll0, 0, main_pll0.hsdiv[0]);
+
+		/* Enable specific HSDIVs on PLL0 (2,3,4,5,6,7,9) */
+		k3low_pll_enable_hsdivs(&main_pll0, main_pll0_hsdivs_to_disable,
+			ARRAY_SIZE(main_pll0_hsdivs_to_disable));
+	} else {
+		for (i = 0; i < num_main_plls_save_rstr; i++) {
+			k3low_pll_restore(main_plls_save_rstr[i]);
 		}
 	}
 
@@ -403,6 +412,8 @@ __wkupsramfunc static bool lpm_wait_for_secondary_core_down(void)
 
 __wkupsramsuspendentry void k3low_lpm_stub_entry(uint32_t mode)
 {
+	lpm_mode = mode;
+
 	if (mode == TI_K3_SLEEP_MODE_RTC_PLUS_DDR) {
 		/* Wait for a53_1 to turn off */
 		if (lpm_wait_for_secondary_core_down() == false) {
