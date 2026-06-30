@@ -1248,12 +1248,67 @@ static int32_t clk_pll_16fft_init(struct ti_clk *clock_ptr)
 	return clk_pll_16fft_init_internal(clock_ptr);
 }
 
+static int32_t clk_pll_16fft_suspend_save(struct ti_clk *clkp)
+{
+	const struct ti_clk_data *clock_data = clk_get_data(clkp);
+	const struct ti_clk_data_pll_16fft *pll;
+	const struct ti_clk_data_pll *data_pll;
+
+	data_pll = container_of(clock_data->data, const struct ti_clk_data_pll,
+				data);
+	pll = container_of(data_pll, const struct ti_clk_data_pll_16fft,
+			   data_pll);
+
+	/*
+	 * Save the current VCO frequency computed from hardware registers.
+	 * If the PLL is not locked, save 0 to skip restore.
+	 */
+	if (!clk_pll_16fft_check_lock(pll)) {
+		clkp->saved_val = 0U;
+	} else {
+		clkp->saved_val = clk_pll_16fft_get_freq_internal(clkp, 1U);
+	}
+
+	return 0;
+}
+
+static int32_t clk_pll_16fft_resume_restore(struct ti_clk *clkp)
+{
+	const struct ti_clk_data *clock_data = clk_get_data(clkp);
+	const struct ti_clk_data_pll_16fft *pll;
+	const struct ti_clk_data_pll *data_pll;
+	bool changed;
+	uint32_t freq;
+
+	if (clkp->saved_val == 0U) {
+		return 0;
+	}
+
+	data_pll = container_of(clock_data->data, const struct ti_clk_data_pll,
+				data);
+	pll = container_of(data_pll, const struct ti_clk_data_pll_16fft,
+			   data_pll);
+
+	/* Only reprogram if the PLL came up in bypass after resume */
+	if (!clk_pll_16fft_is_bypass(pll)) {
+		return 0;
+	}
+
+	freq = clk_pll_16fft_set_freq(clkp, clkp->saved_val,
+				      clkp->saved_val, clkp->saved_val,
+				      false, &changed);
+
+	return (freq != 0U) ? 0 : -EFAULT;
+}
+
 const struct ti_clk_drv ti_clk_drv_pll_16fft = {
 	.init = clk_pll_16fft_init,
 	.get_freq = clk_pll_16fft_get_freq,
 	.set_freq = clk_pll_16fft_set_freq,
 	.get_state = clk_pll_16fft_get_state,
 	.set_state = clk_pll_16fft_set_state,
+	.suspend_save	= clk_pll_16fft_suspend_save,
+	.resume_restore = clk_pll_16fft_resume_restore,
 };
 
 static uint32_t clk_pll_16fft_postdiv_set_freq(struct ti_clk *clock_ptr,
@@ -1560,14 +1615,67 @@ static int32_t clk_pll_16fft_hsdiv_init(struct ti_clk *clkp)
 	return 0;
 }
 
+/*
+ * \brief Save HSDIV register state during suspend.
+ *
+ * \param clkp The HSDIV clock.
+ *
+ * \return 0 on success.
+ */
+static int32_t ti_clk_pll_16fft_hsdiv_suspend_save(struct ti_clk *clkp)
+{
+	const struct ti_clk_data *clk_datap = clk_get_data(clkp);
+	const struct ti_clk_data_div *data_div;
+	const struct ti_clk_data_div_reg *data_reg;
+
+	data_div = container_of(clk_datap->data, const struct ti_clk_data_div,
+				data);
+	data_reg = container_of(data_div, const struct ti_clk_data_div_reg,
+				data_div);
+	clkp->saved_val = readl(data_reg->reg);
+
+	return 0;
+}
+
+/*
+ * \brief Restore HSDIV register state during resume.
+ *
+ * Restores the HSDIV register to its saved state if the HSDIV output is
+ * currently disabled, allowing resume-time reconfiguration of disabled outputs.
+ *
+ * \param clkp The HSDIV clock.
+ *
+ * \return 0 on success.
+ */
+static int32_t ti_clk_pll_16fft_hsdiv_resume_restore(struct ti_clk *clkp)
+{
+	const struct ti_clk_data *clk_datap = clk_get_data(clkp);
+	const struct ti_clk_data_div *data_div;
+	const struct ti_clk_data_div_reg *data_reg;
+	uint32_t hsdiv_ctrl;
+
+	data_div = container_of(clk_datap->data, const struct ti_clk_data_div,
+				data);
+	data_reg = container_of(data_div, const struct ti_clk_data_div_reg,
+				data_div);
+	hsdiv_ctrl = readl(data_reg->reg);
+
+	/* Only restore if the HSDIV is disabled */
+	if((hsdiv_ctrl & PLL_16FFT_HSDIV_CTRL_CLKOUT_EN) == 0U) {
+		writel(clkp->saved_val, data_reg->reg);
+	}
+
+	return 0;
+}
+
 const struct ti_clk_drv_div ti_clk_drv_div_pll_16fft_hsdiv = {
 	.drv = {
 		.init = clk_pll_16fft_hsdiv_init,
 		.notify_freq = ti_clk_div_notify_freq,
 		.get_freq = ti_clk_div_get_freq,
 		.set_freq = clk_pll_16fft_hsdiv_set_freq,
-		.suspend_save	= ti_clk_div_suspend_save,
-		.resume_restore = ti_clk_div_resume_restore,
+		.suspend_save	= ti_clk_pll_16fft_hsdiv_suspend_save,
+		.resume_restore = ti_clk_pll_16fft_hsdiv_resume_restore,
 	},
 	.set_div = ti_clk_div_reg_set_div,
 	.get_div = ti_clk_div_reg_get_div,
@@ -1579,8 +1687,8 @@ const struct ti_clk_drv_div ti_clk_drv_div_pll_16fft_postdiv_hsdiv = {
 		.set_freq = ti_clk_div_set_freq,
 		.get_freq = ti_clk_div_get_freq,
 		.init = clk_pll_16fft_hsdiv_init,
-		.suspend_save	= ti_clk_div_suspend_save,
-		.resume_restore = ti_clk_div_resume_restore,
+		.suspend_save	= ti_clk_pll_16fft_hsdiv_suspend_save,
+		.resume_restore = ti_clk_pll_16fft_hsdiv_resume_restore,
 	},
 	.set_div = ti_clk_div_reg_set_div,
 	.get_div = ti_clk_div_reg_get_div,
