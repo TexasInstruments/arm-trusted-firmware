@@ -40,8 +40,8 @@
 
 /* CPU idle state definitions for PSCI */
 #define CORE_IDLE_STATE			0x1U
-#define LOW_LATENCY_IDLE_STATE		0x2U
-#define HIGH_LATENCY_IDLE_STATE		0x3U
+#define STANDBY_IDLE_STATE		0x2U
+#define DEEP_STANDBY_IDLE_STATE		0x3U
 
 /*
  * Does the state coordination between the cores for entry into the standby states.

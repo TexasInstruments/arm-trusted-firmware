@@ -29,16 +29,12 @@
 #define PLL_BYP_EN_MASK 0x80000000U
 
 #define MAIN_PLL_MMR_CFG_BASE	(0x04060000UL)
-#define WKUP_PLL_MMR_CFG_BASE   (0x04040000UL)
 
 #define MAIN_PLL0_HSDIVx(x)	MAIN_PLL_MMR_CFG_BASE + 0x80 + (0x4 * x)
 #define MAIN_PLL8_BASE MAIN_PLL_MMR_CFG_BASE + 0x1000 * 8
 #define MAIN_PLL8_CTRL MAIN_PLL8_BASE + 0x20
-#define MAIN_PLL17_BASE MAIN_PLL_MMR_CFG_BASE + 0x1000 * 17
-#define MAIN_PLL17_CTRL MAIN_PLL17_BASE + 0x20
-#define WKUP_MAIN_PLL0_HSDIVx(x)	WKUP_PLL_MMR_CFG_BASE + 0x80 + (0x4 * x)
 
-#define PLL_COUNT_LOW_LAT_STBY 11
+#define PLL_COUNT_STBY 11
 
 #define LPSC_ADDR(lpsc_id) MAIN_PSC_MDSTAT_BASE + (4 * lpsc_id)
 #define PSC_ADDR(psc_id) MAIN_PSC_PDSTAT_BASE + (4 * psc_id)
@@ -53,12 +49,12 @@
 #define DDR_PD_TIMEOUT 0x0000FF00 /* Timeout value for entry into power-down low power states */
 #define DDR_SRSTATE_TIMOUT 0x0F0F00FF /* Timeout value for entry into self-refresh low power states */
 
-#define DDR_CTL_COUNT_LOW_LAT_STBY 3
+#define DDR_CTL_COUNT_DEEP_STBY 3
 
 #define EN_AUTO_CLKGATE 0U
 #define WKUP_CTRL_MMR_CFG5_CLKGATE_CTRL0 0x43054050
 
-#define LPSC_COUNT_LOW_LAT_STBY 5
+#define LPSC_COUNT_STBY 5
 
 /*
  * @brief Structure to store power domain and corresponding lpsc
@@ -70,6 +66,7 @@ struct pd_lpsc_id {
     uint8_t lpsc_id;
 };
 
+/* Debug and Test LPSCs to be disabled in standby mode */
 static const struct pd_lpsc_id stby_pd_lpsc_table[] = {
 	{ .pd_id = 0, .lpsc_id = 1 },  /* LPSC_main_gp_test */
 	{ .pd_id = 0, .lpsc_id = 2 },  /* LPSC_main_gp_pbist0 */
@@ -90,9 +87,9 @@ static const struct ddr_ctrl_reg stby_ddr_ctrl_regs[] = {
 };
 
 struct am62l_pm_state {
-    uint32_t pll_hsdiv_val[PLL_COUNT_LOW_LAT_STBY];
-    uint32_t lpsc_value[LPSC_COUNT_LOW_LAT_STBY];
-    uint32_t ddr_reg[DDR_CTL_COUNT_LOW_LAT_STBY];
+    uint32_t pll_hsdiv_val[PLL_COUNT_STBY];
+    uint32_t lpsc_value[LPSC_COUNT_STBY];
+    uint32_t ddr_reg[DDR_CTL_COUNT_DEEP_STBY];
     uint32_t auto_clk_gate;
 };
 
@@ -102,8 +99,8 @@ static volatile struct am62l_pm_state saved_state;
  *	state_entered - to track the state of individual cores
  *	Value : 0 - PSCI_LOCAL_STATE_RUN
  *			1 - CORE IDLE_STATE
- *			2 - LOW_LATENCY IDLE_STATE
- *			3 - HIGH_LATENCY IDLE_STATE
+ *			2 - STANDBY IDLE_STATE
+ *			3 - DEEP_STANDBY IDLE_STATE
  */
 static uint32_t state_entered[PLATFORM_CORE_COUNT] = {PSCI_LOCAL_STATE_RUN};
 
@@ -128,7 +125,6 @@ void set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint3
 	pdctrl = mmio_read_32(pdctrl_ptr);
 	pdstat = mmio_read_32(pdstat_ptr);
 
-	VERBOSE("%s: before: md_id=%d, mdstat=0x%x, pdstat=0x%x\n", __func__, md_id, mdstat, pdstat);
 	if (((pdstat & PSC_STATE_MASK) == pd_state) && ((mdstat & LPSC_STATE_MASK) == md_state))
 		return;
 
@@ -144,7 +140,7 @@ void set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint3
 		if (((uint32_t)read_cntpct_el0() - tick_start) > timeout_ticks) {
 			ERROR("PSC timeout waiting for initial GOSTAT to clear for md_id %d and pd_id %d\n",
 			      md_id ,pd_id);
-			break;
+			return;
 		}
 		psc_ptstat = mmio_read_32(MAIN_PSC_PTSTAT);
 	}
@@ -172,7 +168,7 @@ void set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint3
 	while ((psc_ptstat & BIT_32(pd_id)) != 0) {
 		if (((uint32_t)read_cntpct_el0() - tick_start) > timeout_ticks) {
 			ERROR("PSC timeout waiting for GOSTAT to clear for md_id %d and pd_id %d\n",md_id ,pd_id);
-			break;
+			return;
 		}
 		psc_ptstat = mmio_read_32(MAIN_PSC_PTSTAT);
 	}
@@ -180,7 +176,6 @@ void set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint3
 	//check states
 	mdstat = mmio_read_32(mdstat_ptr);
 	pdstat = mmio_read_32(pdstat_ptr);
-	VERBOSE("%s: after: md_id=%d, mdstat=0x%x, pdstat=0x%x\n", __func__, md_id, mdstat, pdstat);
 }
 
 /*
@@ -191,18 +186,18 @@ void set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint3
 void am62l_standby_save_state()
 {
     /* Save PLL values */
-    for (int i = 0; i < PLL_COUNT_LOW_LAT_STBY - 1; i++) {
+    for (int i = 0; i < PLL_COUNT_STBY - 1; i++) {
         saved_state.pll_hsdiv_val[i] = mmio_read_32(MAIN_PLL0_HSDIVx(i));
     }
-    saved_state.pll_hsdiv_val[PLL_COUNT_LOW_LAT_STBY - 1] = mmio_read_32(MAIN_PLL8_CTRL);
+    saved_state.pll_hsdiv_val[PLL_COUNT_STBY - 1] = mmio_read_32(MAIN_PLL8_CTRL);
 
     /* Save LPSC values */
-    for (int i = 0; i < LPSC_COUNT_LOW_LAT_STBY; i++) {
+    for (int i = 0; i < LPSC_COUNT_STBY; i++) {
         saved_state.lpsc_value[i] = mmio_read_32(LPSC_ADDR(stby_pd_lpsc_table[i].lpsc_id)) & LPSC_STATE_MASK;
     }
 
 	/* Save EMIF LP control registers */
-	for (int i = 0; i < DDR_CTL_COUNT_LOW_LAT_STBY; i++) {
+	for (int i = 0; i < DDR_CTL_COUNT_DEEP_STBY; i++) {
 		saved_state.ddr_reg[i] = mmio_read_32(stby_ddr_ctrl_regs[i].addr);
 	}
 
@@ -211,33 +206,69 @@ void am62l_standby_save_state()
 }
 
 /*
- * Configure the hardware for low-latency standby mode.
+ * Configure the hardware for standby mode.
  * Scales down PLLs, disables unused peripherals, enables DDR self-refresh,
  * and configures automatic clock gating to minimize power consumption
  * while maintaining fast resume capability.
  */
-void am62l_low_latency_standby_sequence()
+void am62l_standby_sequence()
 {
-	/* Change the LPSC values only if they are not already turned off */
-	for (int i = 0; i < LPSC_COUNT_LOW_LAT_STBY; i++) {
-		if (saved_state.lpsc_value[i] != PSC_SYNCRESETDISABLE) {
+	/* Change the LPSC values only if they are in enable state */
+	for (int i = 0; i < LPSC_COUNT_STBY; i++) {
+		if (saved_state.lpsc_value[i] == PSC_ENABLE) {
 			set_main_psc_state(stby_pd_lpsc_table[i].pd_id, stby_pd_lpsc_table[i].lpsc_id, PSC_PD_ON, PSC_DISABLE);
 		}
 	}
 	/*
-	 * Low latency standby PLL scaling (ref: AM62L_OS_Idle_Setting_v1.1_AVV.xlsx) -
-	 * PLL0_HSDIVOUT0 : 125Mhz, hsdiv = 15,
-	 * PLL0_HSDIVOUT5 : 200Mhz, hsdiv = 4,
-	 * PLL0_HSDIVOUT6 : 250Mhz, hsdiv = 3,
-	 * PLL0_HSDIVOUT7 : 166Mhz, hsdiv = 5,
-	 * PLL0_HSDIVOUT8 : 25Mhz,  hsdiv = 39,
-	 * PLL0_HSDIVOUT9 : DISABLED,
-	 * PLL8_HSDIVOUT0 : BYPASS,
+	 * Standby PLL scaling:
+	 *
+	 * PLL0_HSDIVOUT8 (USB, MCASP, DPHY clock): scaled down to 25 MHz
+	 *   (hsdiv = 0x27). These peripherals are not actively used during
+	 *   standby but their LPSC may remain enabled, so the clock is kept
+	 *   alive at a bypass clock rate rather than fully gated.
+	 *
+	 * PLL0_HSDIVOUT9 (debug trace clock): clock output disabled.
+	 *   Debug/trace activity is not required during standby, making this
+	 *   a safe power saving.
+	 *
+	 * MAIN PLL8 (A53 core clock): bypassed by A53 clocks.
+	 *   Both A53 cores enter WFI during standby.
+	 *   Bypassing the PLL saves PLL power while still
+	 *   supplying a clock to the core domain, allowing
+	 *   fast wake-up without a full PLL relock sequence.
+	 */
+	mmio_write_32(MAIN_PLL0_HSDIVx(8), (saved_state.pll_hsdiv_val[8] & ~(PLL_HSDIV_MASK)) | 0x27);
+	mmio_write_32(MAIN_PLL0_HSDIVx(9), (saved_state.pll_hsdiv_val[9] & ~(PLL_CLK_EN_MASK)));
+
+	/* Bypass MAIN PLL8 */
+	mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[10] | PLL_BYP_EN_MASK);
+
+	/* Enable AUTO CLOCK GATING */
+	mmio_write_32(WKUP_CTRL_MMR_CFG5_CLKGATE_CTRL0, EN_AUTO_CLKGATE);
+	return;
+}
+
+void am62l_deep_standby_sequence()
+{
+	/* Change the LPSC values only if they are in enabled state */
+	for (int i = 0; i < LPSC_COUNT_STBY; i++) {
+		if (saved_state.lpsc_value[i] == PSC_ENABLE) {
+			set_main_psc_state(stby_pd_lpsc_table[i].pd_id, stby_pd_lpsc_table[i].lpsc_id, PSC_PD_ON, PSC_DISABLE);
+		}
+	}
+	/*
+	 * Deep standby PLL scaling:
+	 *
+	 * PLL0_HSDIVOUT0 (CBASS interconnect clock): scaled down to 125 MHz
+	 *   (hsdiv = 0xf), which is the minimum required frequency for it
+	 *   to be functional. The CBASS fabric must remain clocked to service
+	 *   wakeup interrupts and DDR traffic, but full operating frequency is
+	 *   not required when no Display or ethernet traffic is present.
+	 *   Reducing it saves dynamic power on the interconnect.
+	 *
+	 * Other PLLs are scaled down or disabled as in the regular standby sequence.
 	 */
 	mmio_write_32(MAIN_PLL0_HSDIVx(0), (saved_state.pll_hsdiv_val[0] & ~(PLL_HSDIV_MASK)) | 0xf);
-	mmio_write_32(MAIN_PLL0_HSDIVx(5), (saved_state.pll_hsdiv_val[5] & ~(PLL_HSDIV_MASK)) | 0x4);
-	mmio_write_32(MAIN_PLL0_HSDIVx(6), (saved_state.pll_hsdiv_val[6] & ~(PLL_HSDIV_MASK)) | 0x3);
-	mmio_write_32(MAIN_PLL0_HSDIVx(7), (saved_state.pll_hsdiv_val[7] & ~(PLL_HSDIV_MASK)) | 0x5);
 	mmio_write_32(MAIN_PLL0_HSDIVx(8), (saved_state.pll_hsdiv_val[8] & ~(PLL_HSDIV_MASK)) | 0x27);
 	mmio_write_32(MAIN_PLL0_HSDIVx(9), (saved_state.pll_hsdiv_val[9] & ~(PLL_CLK_EN_MASK)));
 
@@ -245,7 +276,7 @@ void am62l_low_latency_standby_sequence()
 	mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[10] | PLL_BYP_EN_MASK);
 
 	/* Enable DDR Auto self refresh */
-	for (int i = 0; i < DDR_CTL_COUNT_LOW_LAT_STBY; i++) {
+	for (int i = 0; i < DDR_CTL_COUNT_DEEP_STBY; i++) {
 		mmio_write_32(stby_ddr_ctrl_regs[i].addr, stby_ddr_ctrl_regs[i].val);
 	}
 
@@ -265,19 +296,19 @@ void am62l_standby_restore_state()
     mmio_write_32(WKUP_CTRL_MMR_CFG5_CLKGATE_CTRL0, saved_state.auto_clk_gate);
 
 	/* Restore EMIF LP control registers */
-	for (int i = 0; i < DDR_CTL_COUNT_LOW_LAT_STBY; i++) {
+	for (int i = 0; i < DDR_CTL_COUNT_DEEP_STBY; i++) {
 		mmio_write_32(stby_ddr_ctrl_regs[i].addr, saved_state.ddr_reg[i]);
 	}
 
     /* Restore PLL */
-    for (int i = 0;i < PLL_COUNT_LOW_LAT_STBY - 1;i++) {
+    for (int i = 0;i < PLL_COUNT_STBY - 1;i++) {
         mmio_write_32(MAIN_PLL0_HSDIVx(i), saved_state.pll_hsdiv_val[i]);
     }
-    mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[PLL_COUNT_LOW_LAT_STBY - 1]);
+    mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[PLL_COUNT_STBY - 1]);
 
     /* Restore LPSC states */
-    for (int i = 0;i < LPSC_COUNT_LOW_LAT_STBY;i++) {
-        if (saved_state.lpsc_value[i] != PSC_SYNCRESETDISABLE) {
+    for (int i = 0;i < LPSC_COUNT_STBY;i++) {
+        if (saved_state.lpsc_value[i] == PSC_ENABLE) {
 			set_main_psc_state(stby_pd_lpsc_table[i].pd_id, stby_pd_lpsc_table[i].lpsc_id, PSC_PD_ON, saved_state.lpsc_value[i]);
         }
     }
@@ -293,8 +324,10 @@ void am62l_enter_standby(uint32_t core, uint32_t cluster_pwr_state)
 	state_entered[core] = cluster_pwr_state;
 
 	if (!in_standby || in_standby < state_entered[core]) {
-		if (state_entered[core] == LOW_LATENCY_IDLE_STATE) {
-			am62l_low_latency_standby_sequence();
+		if (state_entered[core] == STANDBY_IDLE_STATE) {
+			am62l_standby_sequence();
+		} else if (state_entered[core] == DEEP_STANDBY_IDLE_STATE) {
+			am62l_deep_standby_sequence();
 		}
 	}
 	/* Updating the SCR register to enter WFI */
@@ -315,7 +348,7 @@ void am62l_exit_standby(uint32_t core, uint32_t cluster_pwr_state)
 		return;
 	}
 
-	if (state_entered[core] == LOW_LATENCY_IDLE_STATE) {
+	if (state_entered[core] == STANDBY_IDLE_STATE || state_entered[core] == DEEP_STANDBY_IDLE_STATE) {
 		am62l_standby_restore_state();
 	}
 	/* now that both cores have exited cluster standby, we reset the state */
