@@ -1640,8 +1640,8 @@ static int32_t ti_clk_pll_16fft_hsdiv_suspend_save(struct ti_clk *clkp)
 /*
  * \brief Restore HSDIV register state during resume.
  *
- * Restores the HSDIV register to its saved state if the HSDIV output is
- * currently disabled, allowing resume-time reconfiguration of disabled outputs.
+ * Restores the full HSDIV control register (divider + CLKOUT_EN) to its
+ * pre-suspend value if it has changed after resume.
  *
  * \param clkp The HSDIV clock.
  *
@@ -1658,10 +1658,10 @@ static int32_t ti_clk_pll_16fft_hsdiv_resume_restore(struct ti_clk *clkp)
 				data);
 	data_reg = container_of(data_div, const struct ti_clk_data_div_reg,
 				data_div);
+
 	hsdiv_ctrl = readl(data_reg->reg);
 
-	/* Only restore if the HSDIV is disabled */
-	if((hsdiv_ctrl & PLL_16FFT_HSDIV_CTRL_CLKOUT_EN) == 0U) {
+	if (clkp->saved_val != hsdiv_ctrl) {
 		writel(clkp->saved_val, data_reg->reg);
 	}
 
