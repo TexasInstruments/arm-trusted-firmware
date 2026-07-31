@@ -36,12 +36,6 @@
 
 volatile unsigned int val_mdctl;
 volatile unsigned int val_mdstat;
-volatile uint32_t am62l_lpm_state = TI_K3_SLEEP_MODE_INVALID;
-/*
- * CPU Hot plug(CPU HP) status flag, used to differentiate if it's regular
- * deep or s2idle mem_sleep from the OS
- */
-volatile int core_1_hp_status = 0x0;
 
 #define CORE_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL0])
 #define CLUSTER_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL1])
@@ -59,6 +53,12 @@ volatile int core_1_hp_status = 0x0;
 
 #define MAIN_PSC_MDSTAT_BASE	0x00400800UL
 #define LPSC_STATE_MASK		0x1fU
+
+/*
+ * Flag indicating core participation in s2idle sequence.
+ */
+volatile bool in_s2idle[2] = {false, false};
+volatile uint32_t am62l_lpm_state = TI_K3_SLEEP_MODE_INVALID;
 
 uintptr_t am62l_sec_entrypoint;
 uintptr_t am62l_sec_entrypoint_glob;
@@ -129,7 +129,6 @@ static int am62l_pwr_domain_on(u_register_t mpidr)
 		ERROR("Could not get target core id: %d\n", core);
 		return PSCI_E_INTERN_FAIL;
 	}
-	core_1_hp_status = 1;
 	dsb();
 	return am62l_core_pwr_domain_on(core);
 }
@@ -139,7 +138,6 @@ static void am62l_pwr_domain_off(const psci_power_state_t *target_state)
 	/* At very least the local core should be powering down */
 	assert(((target_state)->pwr_domain_state[MPIDR_AFFLVL0]) == PLAT_MAX_OFF_STATE);
 
-	core_1_hp_status = 0;
 	dsb();
 	/* Prevent interrupts from spuriously waking up this cpu */
 	k3_gic_cpuif_disable();
@@ -209,8 +207,10 @@ static int am62l_validate_power_state(unsigned int power_state,
 		CLUSTER_PWR_STATE(req_state) = PWR_LVL_STATE(power_state, MPIDR_AFFLVL1);
 		SYSTEM_PWR_STATE(req_state) = PWR_LVL_STATE(power_state, PLAT_MAX_PWR_LVL);
 	} else if (pstate == PSTATE_TYPE_POWERDOWN) {
-		for (i = MPIDR_AFFLVL0; i <= pwr_lvl; i++)
+		in_s2idle[core] = true;
+		for (i = MPIDR_AFFLVL0; i <= pwr_lvl; i++) {
 			req_state->pwr_domain_state[i] = PLAT_MAX_OFF_STATE;
+		}
 		if (power_state == LPM_PSTATE_DSS_DEEPSLEEP) {
 			INFO("%s: (core %d): DSS Deep Sleep: 0x%x\n", __func__, core, power_state);
 			am62l_lpm_state = TI_K3_SLEEP_MODE_DSS_PLUS_DEEP_SLEEP;
@@ -230,6 +230,21 @@ static int am62l_validate_power_state(unsigned int power_state,
 	return PSCI_E_SUCCESS;
 }
 
+static int am62l_pwr_domain_validate_suspend(const psci_power_state_t *target_state)
+{
+	uint32_t core = plat_my_core_pos();
+
+	if (in_s2idle[core] == true) {
+		if (am62l_lpm_state != TI_K3_SLEEP_MODE_INVALID) {
+			return PSCI_E_SUCCESS;
+		} else {
+			in_s2idle[core] = false;
+			return PSCI_E_DENIED;
+		}
+	}
+	return PSCI_E_SUCCESS;
+}
+
 static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 {
 	uint32_t core, proc_id;
@@ -244,41 +259,34 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 		uint32_t cluster_pwr_state = CLUSTER_PWR_STATE(target_state);
 		am62l_enter_standby(core, cluster_pwr_state);
 		return;
-	} else if(CORE_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE && (core_1_hp_status == 1)){
-		if (core != 0) {
-			INFO("\n%s: A53 CORE: %d suspend\n", __func__, core);
-			/* Signal that secondary core has entered suspend */
-			k3_gic_cpuif_disable();
-			return;
-		}
+	}
 
-		/* wait 10000uS for the other core to finish suspend sequence and turn itself off */
-		uint32_t timeout_core_wfi = 1000;
-		uint32_t core_1_mdstat_ptr = MAIN_PSC_MDSTAT_BASE + (4 * LPSC_MAIN_MPU_CLST_CORE_1);
-		volatile uint32_t core_1_mdstat;
+	if (core != 0) {
+		INFO("\n%s: A53 CORE: %d suspend\n", __func__, core);
+		/* Signal that secondary core has entered suspend */
+		k3_gic_cpuif_disable();
+		return;
+	}
 
-		do {
-			core_1_mdstat = mmio_read_32(core_1_mdstat_ptr) & LPSC_STATE_MASK;
-			timeout_core_wfi--;
-			udelay(10);
-		} while((core_1_mdstat != PSC_SYNCRESETDISABLE) && (timeout_core_wfi != 0));
+	/* wait 10000uS for the other core to finish suspend sequence and turn itself off */
+	uint32_t timeout_core_wfi = 1000;
+	uint32_t core_1_mdstat_ptr = MAIN_PSC_MDSTAT_BASE + (4 * LPSC_MAIN_MPU_CLST_CORE_1);
+	volatile uint32_t core_1_mdstat;
 
+	do {
+		core_1_mdstat = mmio_read_32(core_1_mdstat_ptr) & LPSC_STATE_MASK;
+		timeout_core_wfi--;
+		udelay(10);
+	} while((core_1_mdstat != PSC_SYNCRESETDISABLE) && (timeout_core_wfi != 0));
+
+	if (timeout_core_wfi == 0U) {
+		ERROR("%s: timeout waiting for core 1", __func__);
+	}
+
+	if (in_s2idle[core] == true) {
 		mode = am62l_lpm_state;
-
-		/* Save the GIC ITS context */
 		k3_gic_its_save();
-
-		/*
-		 * mode=6 for RTC only + DDR and mode=0 for deepsleep
-		 */
-		if (mode != TI_K3_SLEEP_MODE_INVALID && timeout_core_wfi != 0) {
-			INFO ("%s: mode = %d", __func__, mode);
-		} else if (timeout_core_wfi == 0) {
-			ERROR("%s: timeout waiting for core 1", __func__);
-		} else {
-			ERROR("INVALID MODE, core = %d!!\n", core);
-			return;
-		}
+		INFO("%s: mode = %d\n", __func__, mode);
 	}
 
 	proc_id = PLAT_PROC_START_ID + core;
@@ -373,8 +381,9 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 		write_scr_el3(scr);
 		isb();
 
-		INFO("Core 1 resumed");
+		in_s2idle[core] = false;
 
+		INFO("Core 1 resumed");
 		return;
 	}
 
@@ -390,19 +399,16 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 	k3low_lpm_stub_copy_to_sram();
 	ti_clks_resume();
 
-	if (core_1_hp_status == 1) {
-		/* 60 irqn = RTC */
-		gicv3_set_spi_routing(60, GICV3_IRM_ANY, 0);
-		gicv3_enable_interrupt(60, 0);
+	if (in_s2idle[core] == true) {
+		gicv3_set_spi_routing(60, GICV3_IRM_ANY, 0U);
+		gicv3_enable_interrupt(60, 0U);
 		write_icc_igrpen1_el3(read_icc_igrpen1_el3() |
 				IGRPEN1_EL3_ENABLE_G1NS_BIT);
-		gicv3_set_interrupt_pending(60, 0);
-
+		gicv3_set_interrupt_pending(60, 0U);
 		k3_gic_its_restore();
-
-		am62l_core_pwr_domain_on(1);
-	} else {
-		return;
+		if (in_s2idle[1] == true) {
+			am62l_core_pwr_domain_on(1);
+		}
 	}
 
 	/*
@@ -411,6 +417,7 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 	 * proper synchronization on subsequent suspend attempts.
 	 */
 	am62l_lpm_state = TI_K3_SLEEP_MODE_INVALID;
+	in_s2idle[core] = false;
 }
 
 static void am62l_get_sys_suspend_power_state(psci_power_state_t *req_state)
@@ -438,6 +445,7 @@ static plat_psci_ops_t am62l_plat_psci_ops = {
 	.pwr_domain_suspend_finish = am62l_pwr_domain_suspend_finish,
 	.get_sys_suspend_power_state = am62l_get_sys_suspend_power_state,
 	.validate_power_state = am62l_validate_power_state,
+	.pwr_domain_validate_suspend = am62l_pwr_domain_validate_suspend,
 	.system_off = am62l_system_off,
 };
 
