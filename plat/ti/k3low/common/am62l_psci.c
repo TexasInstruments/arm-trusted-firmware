@@ -36,7 +36,7 @@
 
 volatile unsigned int val_mdctl;
 volatile unsigned int val_mdstat;
-volatile uint32_t am62l_lpm_state = 0xDEAD;
+volatile uint32_t am62l_lpm_state = TI_K3_SLEEP_MODE_INVALID;
 /*
  * CPU Hot plug(CPU HP) status flag, used to differentiate if it's regular
  * deep or s2idle mem_sleep from the OS
@@ -271,7 +271,7 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 		/*
 		 * mode=6 for RTC only + DDR and mode=0 for deepsleep
 		 */
-		if (mode != 0xDEAD && timeout_core_wfi != 0) {
+		if (mode != TI_K3_SLEEP_MODE_INVALID && timeout_core_wfi != 0) {
 			INFO ("%s: mode = %d", __func__, mode);
 		} else if (timeout_core_wfi == 0) {
 			ERROR("%s: timeout waiting for core 1", __func__);
@@ -410,7 +410,7 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 	 * This must be done after resume is complete to ensure
 	 * proper synchronization on subsequent suspend attempts.
 	 */
-	am62l_lpm_state = 0xDEAD;
+	am62l_lpm_state = TI_K3_SLEEP_MODE_INVALID;
 }
 
 static void am62l_get_sys_suspend_power_state(psci_power_state_t *req_state)
