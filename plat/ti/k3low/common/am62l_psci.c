@@ -30,18 +30,14 @@
 #include <ti_sci_protocol.h>
 #include <lib/utils_def.h>
 
-#include <k3_gicv3.h>
 #include <platform_def.h>
 #include <standby.h>
-
-volatile unsigned int val_mdctl;
-volatile unsigned int val_mdstat;
 
 #define CORE_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL0])
 #define CLUSTER_PWR_STATE(state) ((state)->pwr_domain_state[MPIDR_AFFLVL1])
 #define SYSTEM_PWR_STATE(state) ((state)->pwr_domain_state[PLAT_MAX_PWR_LVL])
 
-#define PWR_LVL_STATE(state, lvl) ((state) >> (4 * (lvl)) & 0xfU)
+#define PWR_LVL_STATE(state, lvl) (((state) >> (4U * (uint32_t)(lvl))) & 0xfU)
 
 #define PMCTRL_SYS					(0x80)
 
@@ -51,8 +47,14 @@ volatile unsigned int val_mdstat;
 #define LPM_PSTATE_RTC_DDR			0x2012234U  /* Deep, RTC wakeup only */
 #define LPM_PSTATE_SECONDARY_CPU_SUSPEND	0x0012233U  /* Non-primary CPU suspend marker */
 
-#define MAIN_PSC_MDSTAT_BASE	0x00400800UL
-#define LPSC_STATE_MASK		0x1fU
+#define MAIN_PSC_MDSTAT_BASE		0x00400800UL
+#define LPSC_STATE_MASK			0x1fU
+
+#define DEVICE_RESET_VAL		0x6U
+#define DEVICE_RESET_TIMEOUT_MS		500U
+#define CORE_OFF_POLL_INTERVAL_US	10U
+#define CORE_OFF_POLL_TIMEOUT		1000U
+#define RTC_WAKEUP_IRQN			60U
 
 /*
  * Flag indicating core participation in s2idle sequence.
@@ -67,6 +69,11 @@ void  __aligned(16) jump_to_atf_func(void *unused);
 static void am62l_cpu_standby(plat_local_state_t cpu_state)
 {
 	u_register_t scr;
+
+	/* cpu_state is provided by the PSCI framework but this
+	 * implementation only needs WFI regardless of the requested state. */
+	(void)cpu_state;
+
 	scr = read_scr_el3();
 	/* Enable the Non secure interrupt to wake the CPU */
 	write_scr_el3(scr | SCR_IRQ_BIT | SCR_FIQ_BIT);
@@ -79,20 +86,21 @@ static void am62l_cpu_standby(plat_local_state_t cpu_state)
 	write_scr_el3(scr);
 }
 
-static int __maybe_unused am62l_core_pwr_domain_on(int core) {
-	int proc_id = PLAT_PROC_START_ID + core;	// should be 0x21
+static int __maybe_unused am62l_core_pwr_domain_on(int core)
+{
+	int proc_id = PLAT_PROC_START_ID + core; /* target processor id */
 	int ret;
 
 	INFO("loc_pwr proc_id = 0x%x\n", proc_id);
 
 	ret = ti_sci_proc_request(proc_id);
-	if (ret) {
+	if (ret != 0) {
 		ERROR("Request for processor failed: %d\n", ret);
 		return PSCI_E_INTERN_FAIL;
 	}
 
 	ret = ti_sci_proc_set_boot_cfg(proc_id, am62l_sec_entrypoint, 0, 0);
-	if (ret) {
+	if (ret != 0) {
 		ERROR("Request to set core boot address failed: %d\n", ret);
 		return PSCI_E_INTERN_FAIL;
 	}
@@ -102,7 +110,7 @@ static int __maybe_unused am62l_core_pwr_domain_on(int core) {
 					0, PROC_BOOT_CTRL_FLAG_ARMV8_L2FLUSHREQ |
 					PROC_BOOT_CTRL_FLAG_ARMV8_AINACTS |
 					PROC_BOOT_CTRL_FLAG_ARMV8_ACINACTM);
-	if (ret) {
+	if (ret != 0) {
 		ERROR("Request to clear boot configuration failed: %d\n", ret);
 		return PSCI_E_INTERN_FAIL;
 	}
@@ -115,7 +123,8 @@ static int __maybe_unused am62l_core_pwr_domain_on(int core) {
 
 }
 
-static void am62l_core_pwr_domain_off(int core) {
+static void am62l_core_pwr_domain_off(int core)
+{
 	set_main_psc_state(PD_MPU_CLST_CORE_0 + core, LPSC_MAIN_MPU_CLST_CORE_0 + core,
 			PSC_PD_OFF, PSC_SYNCRESETDISABLE);
 }
@@ -147,6 +156,10 @@ static void am62l_pwr_down_domain(const psci_power_state_t *target_state)
 {
 	int core;
 
+	/* power-down is unconditional at this point; state already
+	 * validated by the PSCI framework. */
+	(void)target_state;
+
 	core = plat_my_core_pos();
 
 	VERBOSE("%s: A53 CORE: %d OFF\n", __func__, core);
@@ -156,6 +169,9 @@ static void am62l_pwr_down_domain(const psci_power_state_t *target_state)
 
 void am62l_pwr_domain_on_finish(const psci_power_state_t *target_state)
 {
+	/* state already applied by PSCI framework before this call. */
+	(void)target_state;
+
 	k3_gic_pcpu_init();
 	k3_gic_cpuif_enable();
 }
@@ -175,17 +191,18 @@ static void __dead2 am62l_system_off(void)
 	INFO("%s: PMIC control configured, waiting for poweroff\n", __func__);
 
 	/* Cannot safely recover - enter infinite WFI loop */
-	while (true)
+	while (true) {
 		wfi();
+	}
 }
 
 static void am62l_system_reset(void)
 {
 	mmio_write_32(WKUP_CTRL_MMR0_BASE + WKUP_CTRL_MMR0_DEVICE_RESET_OFFSET,
-		      0x6);
+		      DEVICE_RESET_VAL);
 
-	/* Wait for reset to complete for 500ms before printing error */
-	mdelay(500);
+	/* Wait for reset to complete before printing error */
+	mdelay(DEVICE_RESET_TIMEOUT_MS);
 
 	/* Ideally we should not reach here */
 	ERROR("%s: Failed to reset device\n", __func__);
@@ -197,10 +214,11 @@ static int am62l_validate_power_state(unsigned int power_state,
 	unsigned int pwr_lvl = psci_get_pstate_pwrlvl(power_state);
 	unsigned int pstate = psci_get_pstate_type(power_state);
 	unsigned int core = plat_my_core_pos();
-	int i;
+	unsigned int i;
 
-	if (pwr_lvl > PLAT_MAX_PWR_LVL)
+	if (pwr_lvl > PLAT_MAX_PWR_LVL) {
 		return PSCI_E_INVALID_PARAMS;
+	}
 
 	if (pstate == PSTATE_TYPE_STANDBY) {
 		CORE_PWR_STATE(req_state) = PWR_LVL_STATE(power_state, MPIDR_AFFLVL0);
@@ -247,37 +265,39 @@ static int am62l_pwr_domain_validate_suspend(const psci_power_state_t *target_st
 
 static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 {
-	uint32_t core, proc_id;
-	uint32_t mode = 0;
-	core = plat_my_core_pos();
+	uint32_t core;
+	uint32_t proc_id;
+	uint32_t mode = 0U;
 	uint64_t context_save_addr = TIFS_LPM_SAVE_CTX;
+	uint32_t timeout_core_wfi = CORE_OFF_POLL_TIMEOUT;
+	uint32_t core_1_mdstat_ptr = MAIN_PSC_MDSTAT_BASE +
+				     (4U * LPSC_MAIN_MPU_CLST_CORE_1);
+	volatile uint32_t core_1_mdstat;
+	uint32_t cluster_pwr_state;
+
+	core = plat_my_core_pos();
 
 	assert(core < 2U);
 
 	/* Entering cluster standby sequence */
 	if (CORE_PWR_STATE(target_state) == CORE_IDLE_STATE) {
-		uint32_t cluster_pwr_state = CLUSTER_PWR_STATE(target_state);
+		cluster_pwr_state = CLUSTER_PWR_STATE(target_state);
 		am62l_enter_standby(core, cluster_pwr_state);
 		return;
 	}
 
-	if (core != 0) {
+	if (core != 0U) {
 		INFO("\n%s: A53 CORE: %d suspend\n", __func__, core);
 		/* Signal that secondary core has entered suspend */
 		k3_gic_cpuif_disable();
 		return;
 	}
 
-	/* wait 10000uS for the other core to finish suspend sequence and turn itself off */
-	uint32_t timeout_core_wfi = 1000;
-	uint32_t core_1_mdstat_ptr = MAIN_PSC_MDSTAT_BASE + (4 * LPSC_MAIN_MPU_CLST_CORE_1);
-	volatile uint32_t core_1_mdstat;
-
 	do {
 		core_1_mdstat = mmio_read_32(core_1_mdstat_ptr) & LPSC_STATE_MASK;
 		timeout_core_wfi--;
-		udelay(10);
-	} while((core_1_mdstat != PSC_SYNCRESETDISABLE) && (timeout_core_wfi != 0));
+		udelay(CORE_OFF_POLL_INTERVAL_US);
+	} while ((core_1_mdstat != PSC_SYNCRESETDISABLE) && (timeout_core_wfi != 0U));
 
 	if (timeout_core_wfi == 0U) {
 		ERROR("%s: timeout waiting for core 1", __func__);
@@ -320,7 +340,7 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 		am62l_exit_standby(core, cluster_pwr_state);
 		return;
 	}
-	if (core == 1) {
+	if (core == 1U) {
 		/*
 		 * Secondary core (core 1) resume synchronization:
 		 *
@@ -400,11 +420,11 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 	ti_clks_resume();
 
 	if (in_s2idle[core] == true) {
-		gicv3_set_spi_routing(60, GICV3_IRM_ANY, 0U);
-		gicv3_enable_interrupt(60, 0U);
+		gicv3_set_spi_routing(RTC_WAKEUP_IRQN, GICV3_IRM_ANY, 0U);
+		gicv3_enable_interrupt(RTC_WAKEUP_IRQN, 0U);
 		write_icc_igrpen1_el3(read_icc_igrpen1_el3() |
 				IGRPEN1_EL3_ENABLE_G1NS_BIT);
-		gicv3_set_interrupt_pending(60, 0U);
+		gicv3_set_interrupt_pending(RTC_WAKEUP_IRQN, 0U);
 		k3_gic_its_restore();
 		if (in_s2idle[1] == true) {
 			am62l_core_pwr_domain_on(1);
@@ -429,9 +449,9 @@ static void am62l_get_sys_suspend_power_state(psci_power_state_t *req_state)
 		req_state->pwr_domain_state[i] = PLAT_MAX_OFF_STATE;
 	}
 
-	#if PSCI_OS_INIT_MODE
-		req_state->last_at_pwrlvl = PLAT_MAX_PWR_LVL;
-	#endif
+#if PSCI_OS_INIT_MODE
+	req_state->last_at_pwrlvl = PLAT_MAX_PWR_LVL;
+#endif
 }
 
 static plat_psci_ops_t am62l_plat_psci_ops = {
@@ -460,6 +480,8 @@ void  __aligned(16) jump_to_atf_func(void *unused)
 	 */
 	void (*bl31_loc_warm_entry)(void) = (void *)am62l_sec_entrypoint_glob;
 
+	(void)unused;
+
 	bl31_loc_warm_entry();
 }
 
@@ -480,7 +502,8 @@ plat_local_state_t plat_get_target_pwr_state(unsigned int lvl,
 					     const plat_local_state_t *states,
 					     unsigned int ncpu)
 {
-	plat_local_state_t target = PLAT_MAX_OFF_STATE, temp;
+	plat_local_state_t target = PLAT_MAX_OFF_STATE;
+	plat_local_state_t temp;
 	const plat_local_state_t *st = states;
 	unsigned int n = ncpu;
 
@@ -494,8 +517,9 @@ plat_local_state_t plat_get_target_pwr_state(unsigned int lvl,
 		 *	Thus the target power state for the cluster is the minimum of the power states
 		 *	requested by all the cores that is not RUN.
 		 */
-		if ((temp < target) && ((temp != PSCI_LOCAL_STATE_RUN) || (lvl != MPIDR_AFFLVL1)))
+		if ((temp < target) && ((temp != PSCI_LOCAL_STATE_RUN) || (lvl != MPIDR_AFFLVL1))) {
 			target = temp;
+		}
 		n--;
 	} while (n > 0U);
 
