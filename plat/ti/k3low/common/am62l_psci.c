@@ -418,6 +418,7 @@ static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_sta
 	ti_init_scmi_server();
 	k3low_lpm_stub_copy_to_sram();
 	ti_clks_resume();
+	k3low_lpm_mailbox_wakeup_info();
 
 	if (in_s2idle[core] == true) {
 		gicv3_set_spi_routing(RTC_WAKEUP_IRQN, GICV3_IRM_ANY, 0U);
