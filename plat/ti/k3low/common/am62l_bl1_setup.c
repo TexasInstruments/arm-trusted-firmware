@@ -37,6 +37,7 @@
 #define DEVSTAT_PRIMARY_BOOTMODE_MASK GENMASK(6, 3)
 #define DEVSTAT_PRIMARY_BOOTMODE_SHIFT (3)
 #define BOOT_DEVICE_MMC (0x08)
+#define BOOT_DEVICE_USB (0x0A)
 #define WKUP_JTAG_DEVICE_ID (WKUP_CTRL_MMR0_BASE + 0x18)
 #define JTAG_DEV_SPEED_MASK GENMASK(10, 6)
 #define JTAG_DEV_SPEED_SHIFT (6)
@@ -197,6 +198,7 @@ static void __dead2 k3_bl1_handoff(void)
 
 		switch (boot_mode) {
 		case BOOT_DEVICE_MMC:
+		case BOOT_DEVICE_USB:
 			memset(a53_rom_msg_obj.imagelocator.filename, 0, sizeof(a53_rom_msg_obj.imagelocator.filename));
 			snprintf(a53_rom_msg_obj.imagelocator.filename, sizeof(a53_rom_msg_obj.imagelocator.filename), "%s%s", "\\", "tispl.bin");
 			break;
