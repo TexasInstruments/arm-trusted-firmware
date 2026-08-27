@@ -395,7 +395,7 @@ static int ti_clk_set_parent(unsigned long scmi_id, unsigned long parent_scmi_id
 	ti_scmi_clock_t *clock = scmi_id_to_clock(scmi_id);
 	ti_scmi_clock_t *parent = scmi_id_to_clock(parent_scmi_id);
 
-	if (clock == NULL || parent == NULL) {
+	if (clock == NULL || parent == NULL || clock->dev_id != parent->dev_id) {
 		return -EINVAL;
 	}
 
