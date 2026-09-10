@@ -36,7 +36,22 @@
 
 #define DEVSTAT_PRIMARY_BOOTMODE_MASK GENMASK(6, 3)
 #define DEVSTAT_PRIMARY_BOOTMODE_SHIFT (3)
+#define DEVSTAT_PRIMARY_BOOTMODE_CFG_MASK GENMASK(9, 7)
+#define DEVSTAT_PRIMARY_BOOTMODE_CFG_SHIFT (7)
 #define BOOT_DEVICE_MMC (0x08)
+#define BOOT_DEVICE_USB (0x0A)
+#define DEVSTAT_PRIMARY_USB_MSC_MODE_MASK BIT(1)
+
+#define DEVSTAT_BACKUP_BOOTMODE_MASK GENMASK(12, 10)
+#define DEVSTAT_BACKUP_BOOTMODE_SHIFT (10)
+#define DEVSTAT_BACKUP_BOOTMODE_CFG_MASK BIT(13)
+#define DEVSTAT_BACKUP_BOOTMODE_CFG_SHIFT (13)
+#define BACKUP_BOOT_DEVICE_USB (0x01)
+#define BACKUP_BOOT_DEVICE_MMC (0x05)
+#define DEVSTAT_BACKUP_USB_MSC_MODE_MASK BIT(0)
+
+#define K3_BOOT_PARAM_TABLE_INDEX_OCRAM (0x70816e70)
+#define K3_PRIMARY_BOOTMODE (0x0)
 #define WKUP_JTAG_DEVICE_ID (WKUP_CTRL_MMR0_BASE + 0x18)
 #define JTAG_DEV_SPEED_MASK GENMASK(10, 6)
 #define JTAG_DEV_SPEED_SHIFT (6)
@@ -148,6 +163,7 @@ static void __dead2 k3_bl1_handoff(void)
 	volatile uint32_t devstat;
 	uint32_t boot_mode;
 	bool is_rtc_only_ddr_exit;
+	bool use_filename;
 
 	/* Workaround for errata i2462, soft reset the flash */
 	if (mmio_read_32(WKUP_BOOT_MODE) == WKUP_BOOT_MODE_XSPI_MODE) {
@@ -195,14 +211,45 @@ static void __dead2 k3_bl1_handoff(void)
 		boot_mode = (devstat & DEVSTAT_PRIMARY_BOOTMODE_MASK) >>
 				DEVSTAT_PRIMARY_BOOTMODE_SHIFT;
 
-		switch (boot_mode) {
-		case BOOT_DEVICE_MMC:
+		use_filename = false;
+		if (mmio_read_32(K3_BOOT_PARAM_TABLE_INDEX_OCRAM) == K3_PRIMARY_BOOTMODE) {
+			switch (boot_mode) {
+			case BOOT_DEVICE_MMC:
+				use_filename = true;
+				break;
+			case BOOT_DEVICE_USB: {
+				uint32_t cfg = (devstat & DEVSTAT_PRIMARY_BOOTMODE_CFG_MASK) >>
+						DEVSTAT_PRIMARY_BOOTMODE_CFG_SHIFT;
+
+				use_filename = !!(cfg & DEVSTAT_PRIMARY_USB_MSC_MODE_MASK);
+				break;
+			}
+			default:
+				break;
+			}
+		} else {
+			uint32_t bkup_mode = (devstat & DEVSTAT_BACKUP_BOOTMODE_MASK) >>
+						DEVSTAT_BACKUP_BOOTMODE_SHIFT;
+			uint32_t bkup_cfg = (devstat & DEVSTAT_BACKUP_BOOTMODE_CFG_MASK) >>
+						DEVSTAT_BACKUP_BOOTMODE_CFG_SHIFT;
+
+			switch (bkup_mode) {
+			case BACKUP_BOOT_DEVICE_MMC:
+				use_filename = true;
+				break;
+			case BACKUP_BOOT_DEVICE_USB:
+				use_filename = !!(bkup_cfg & DEVSTAT_BACKUP_USB_MSC_MODE_MASK);
+				break;
+			default:
+				break;
+			}
+		}
+
+		if (use_filename) {
 			memset(a53_rom_msg_obj.imagelocator.filename, 0, sizeof(a53_rom_msg_obj.imagelocator.filename));
 			snprintf(a53_rom_msg_obj.imagelocator.filename, sizeof(a53_rom_msg_obj.imagelocator.filename), "%s%s", "\\", "tispl.bin");
-			break;
-		default:
+		} else {
 			a53_rom_msg_obj.imagelocator.imageoffset[0] = K3_SPL_IMG_OFFSET;
-			break;
 		}
 
 		msg.buf = (uint8_t *)&a53_rom_msg_obj;
