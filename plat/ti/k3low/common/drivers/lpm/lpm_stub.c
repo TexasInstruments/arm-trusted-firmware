@@ -92,6 +92,21 @@
 /* PLL HSDIV0 Configuration for DSS Deep Sleep */
 #define PLL_HSDIV0_MAX_DIVIDER_VALUE	(0x0FU)
 
+#define IPC_SET			(0x100)
+#define IPC_SET_EN		BIT(0)
+#define IPC_SET_CMD_LPM_INFO	(0x1U)
+#define IPC_SET_CMD_SHIFT	4U
+#define IPC_SET_LPM_SHIFT	8U
+#define IPC_SET_WKUP_SRC_SHIFT	12U
+#define IPC_SET_WKUP_PIN_SHIFT	24U
+#define WKUP_SRC_PERIPH_MASK	(0xFU)
+#define WKUP_SRC_TIMER_MASK	(0xE0U)
+#define WKUP_SRC_TIMER_SHIFT	1U
+#define WKUP_SRC_USB_MASK	(0x600U)
+#define WKUP_SRC_USB_SHIFT	2U
+#define WKUP_SRC_IO_MASK	(0x70000U)
+#define WKUP_SRC_IO_SHIFT	7U
+
 /* Main PLL to be saved and restored */
 __wkupsramdata struct pll_raw_data main_pll0 = {
 .base = K3_MAIN_PLL_MMR_BASE + PLLOFFSET(0U), };
@@ -710,6 +725,27 @@ uint32_t k3low_get_wakeup_src(void)
 uint32_t k3low_get_wakeup_pin(void)
 {
 	return k3low_wakeup_pin;
+}
+
+void k3low_lpm_mailbox_wakeup_info(void)
+{
+	uint32_t wkup_src_condensed;
+	uint32_t wkup_info;
+
+	/* remove unused bits from k3low_wakeup_src to use 12 bits */
+	wkup_src_condensed = (k3low_wakeup_src & WKUP_SRC_PERIPH_MASK) |
+			     (k3low_wakeup_src & WKUP_SRC_TIMER_MASK) >> WKUP_SRC_TIMER_SHIFT |
+			     (k3low_wakeup_src & WKUP_SRC_USB_MASK) >> WKUP_SRC_USB_SHIFT |
+			     (k3low_wakeup_src & WKUP_SRC_IO_MASK) >> WKUP_SRC_IO_SHIFT;
+
+	wkup_info = IPC_SET_EN |
+		    IPC_SET_CMD_LPM_INFO << IPC_SET_CMD_SHIFT |
+		    k3low_lpm_mode << IPC_SET_LPM_SHIFT |
+		    wkup_src_condensed << IPC_SET_WKUP_SRC_SHIFT |
+		    k3low_wakeup_pin << IPC_SET_WKUP_PIN_SHIFT;
+
+	mmio_write_32(MAIN_CTRL_MMR_SEC_1_BASE + IPC_SET,
+		      wkup_info);
 }
 
 #ifndef __ASSEMBLER__

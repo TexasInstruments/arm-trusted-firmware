@@ -96,4 +96,10 @@ uint32_t k3low_get_wakeup_src(void);
  */
 uint32_t k3low_get_wakeup_pin(void);
 
+/**
+ * @brief Put wakeup information (last low power mode, wakeup source, wakeup pin) into MAIN CTRL
+ * MMR IPC_SET register.
+ */
+void k3low_lpm_mailbox_wakeup_info(void);
+
 #endif /* LPM_STB_H */
