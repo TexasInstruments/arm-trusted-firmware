@@ -1668,12 +1668,90 @@ static int32_t ti_clk_pll_16fft_hsdiv_resume_restore(struct ti_clk *clkp)
 	return 0;
 }
 
+/*
+ * Read the hardware state of a PLL 16FFT HSDIV output by checking the
+ * CLKOUT_EN bit in the HSDIV control register.
+ */
+static uint32_t clk_pll_16fft_hsdiv_get_state(struct ti_clk *clkp)
+{
+	const struct ti_clk_data *clk_datap = clk_get_data(clkp);
+	const struct ti_clk_data_div *data_div;
+	const struct ti_clk_data_div_reg *data_reg;
+	uint32_t hsdiv_ctrl;
+
+	data_div = container_of(clk_datap->data, const struct ti_clk_data_div,
+				data);
+	data_reg = container_of(data_div, const struct ti_clk_data_div_reg,
+				data_div);
+
+	hsdiv_ctrl = readl(data_reg->reg);
+
+	if ((hsdiv_ctrl & PLL_16FFT_HSDIV_CTRL_CLKOUT_EN) != 0U) {
+		return TI_CLK_HW_STATE_ENABLED;
+	}
+
+	return TI_CLK_HW_STATE_DISABLED;
+}
+
+/**
+ * @brief Enable or disable PLL 16FFT HSDIV output
+ *
+ * Controls the CLKOUT_EN bit in the HSDIV control register to enable
+ * or disable the HSDIV output clock. This allows unused HSDIVs to be
+ * disabled individually to save power while keeping the parent PLL locked
+ * for other active HSDIVs.
+ *
+ * The parent PLL remains locked as long as at least one HSDIV has a
+ * non-zero reference count. When all HSDIVs are disabled, the PLL will
+ * be bypassed through the existing PLL reference counting mechanism.
+ *
+ * @param clkp HSDIV clock to enable/disable
+ * @param enable true to enable HSDIV output, false to disable
+ *
+ * @return true on success, false on failure
+ */
+static bool clk_pll_16fft_hsdiv_set_state(struct ti_clk *clkp, bool enable)
+{
+	const struct ti_clk_data *clk_datap = clk_get_data(clkp);
+	const struct ti_clk_data_div_reg *data_reg;
+	const struct ti_clk_data_div *data_div;
+	uint32_t hsdiv_ctrl;
+
+	if ((clkp->flags & TI_CLK_FLAG_INITIALIZED) == 0U) {
+		/* Clock not yet initialized, defer action */
+		return true;
+	}
+
+	/* Get HSDIV register data structure */
+	data_div = container_of(clk_datap->data, const struct ti_clk_data_div,
+				data);
+	data_reg = container_of(data_div, const struct ti_clk_data_div_reg,
+				data_div);
+
+	/* Read current HSDIV control register value */
+	hsdiv_ctrl = readl(data_reg->reg);
+
+	if (enable) {
+		/* Enable HSDIV clock output */
+		hsdiv_ctrl |= PLL_16FFT_HSDIV_CTRL_CLKOUT_EN;
+	} else {
+		/* Disable HSDIV clock output to save power */
+		hsdiv_ctrl &= (uint32_t)~PLL_16FFT_HSDIV_CTRL_CLKOUT_EN;
+	}
+
+	writel(hsdiv_ctrl, data_reg->reg);
+
+	return true;
+}
+
 const struct ti_clk_drv_div ti_clk_drv_div_pll_16fft_hsdiv = {
 	.drv = {
 		.init = clk_pll_16fft_hsdiv_init,
 		.notify_freq = ti_clk_div_notify_freq,
 		.get_freq = ti_clk_div_get_freq,
 		.set_freq = clk_pll_16fft_hsdiv_set_freq,
+		.get_state = clk_pll_16fft_hsdiv_get_state,
+		.set_state = clk_pll_16fft_hsdiv_set_state,
 		.suspend_save	= ti_clk_pll_16fft_hsdiv_suspend_save,
 		.resume_restore = ti_clk_pll_16fft_hsdiv_resume_restore,
 	},
@@ -1687,6 +1765,8 @@ const struct ti_clk_drv_div ti_clk_drv_div_pll_16fft_postdiv_hsdiv = {
 		.set_freq = ti_clk_div_set_freq,
 		.get_freq = ti_clk_div_get_freq,
 		.init = clk_pll_16fft_hsdiv_init,
+		.get_state = clk_pll_16fft_hsdiv_get_state,
+		.set_state = clk_pll_16fft_hsdiv_set_state,
 		.suspend_save	= ti_clk_pll_16fft_hsdiv_suspend_save,
 		.resume_restore = ti_clk_pll_16fft_hsdiv_resume_restore,
 	},
