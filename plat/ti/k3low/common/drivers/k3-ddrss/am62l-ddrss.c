@@ -76,6 +76,39 @@ const uint32_t *lpddr4_phy_data;
 #define DENALI_CTL_0_DRAM_CLASS_DDR4 0xAU
 #define DENALI_CTL_0_DRAM_CLASS_LPDDR4 0xBU
 
+/* WKUP_CTRL_MMR_CFG4_DDR32SS_PMCTRL Register */
+#define DDR32SS_PMCTRL (0x1000U)
+#define DDR32SS_PMCTRL_DATA_RETENTION_DEACTIVATED 0x0U
+#define DDR32SS_PMCTRL_LATCH_MASK GENMASK(31, 31)
+#define DDR32SS_PMCTRL_LATCH_LOAD_SHIFT 31U
+#define DDR32SS_PMCTRL_LATCH_CLOSED 0x0U
+#define DDR32SS_PMCTRL_LATCH_OPEN 0x1U
+
+#define DDRSS_CTL_20__REG_OFFS 20U
+#define CTL_PHY_INDEP_TRAIN_MODE_BIT BIT(24)
+
+#define DDRSS_CTL_21__REG_OFFS 21U
+#define CTL_PHY_INDEP_INIT_MODE_BIT BIT(8)
+
+#define DDRSS_CTL_106__REG_OFFS 106U
+#define CTL_PWRUP_SREFRESH_EXIT_EN_BIT BIT(0)
+
+#define DDRSS_CTL_167__REG_OFFS 167U
+#define CTL_LP_AUTO_ENTRY_EN_MASK GENMASK(19, 16)
+#define CTL_LP_AUTO_EXIT_EN_MASK GENMASK(27, 24)
+
+#define DDRSS_PI_6__REG_OFFS 6U
+#define PI_DFI_PHYMSTR_STATE_SREF_VAL BIT(8)
+
+#define DDRSS_PI_134__REG_OFFS 134U
+#define PI_PWRUP_SREFRESH_EXIT_EN_BIT BIT(0)
+
+#define DDRSS_PI_138__REG_OFFS 138U
+#define PI_DRAM_INIT_EN_BIT BIT(8)
+
+#define DDRSS_PHY_1306__REG_OFFS 1306U
+#define PHY_DFI_INPUT_0_SET_VAL 0x1U
+
 #define DDRSS_V2A_CTL_REG 0x0020
 #define DDRSS_ECC_CTRL_REG 0x0120
 
@@ -83,7 +116,6 @@ const uint32_t *lpddr4_phy_data;
 #define DDRSS_V2A_CTL_REG_SDRAM_IDX_MASK (~(0x1F << 0x5))
 #define DDRSS_V2A_CTL_REG_REGION_IDX_MASK (~(0X1F))
 
-#define DDR32SS_PMCTRL (0x1000U)
 #define CANUART_WAKE_OFF_MODE_STAT (0x1318U)
 #define RTC_ONLY_PLUS_DDR_MAGIC_WORD (0x6D555555U)
 
@@ -340,55 +372,78 @@ static void lpm_restore_ddr(lpddr4_privatedata *pd, lpddr4_obj *driverdt)
 {
 	uint32_t regval;
 
-	/* disable auto-entry / -exit */
-	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x0000029C / 4), &regval);
-	regval = (regval & (0xF0F0FFFF));
-	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x0000029C / 4), regval);
+	/* Disable auto self-refresh entry/exit */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, DDRSS_CTL_167__REG_OFFS, &regval);
+	regval = (regval & ~(CTL_LP_AUTO_ENTRY_EN_MASK));
+	regval = (regval & ~(CTL_LP_AUTO_EXIT_EN_MASK));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, DDRSS_CTL_167__REG_OFFS, regval);
 
 	/*
-	 * Set the phy_set_dfi_input_Z parameter bit corresponding to the
-	 * reset signal to 1'b1. Program the controller to a state
+	 * PHY_SET_DFI_INPUT_0: set to 1 so the PHY drives DFI inputs with
+	 * the correct impedance before self-refresh exit.
 	 */
-	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00005468 / 4), &regval);
-	regval = (regval | (0x1));
-	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00005468 / 4), regval);
+	driverdt->readreg(pd, LPDDR4_PHY_REGS, DDRSS_PHY_1306__REG_OFFS, &regval);
+	regval = (regval | PHY_DFI_INPUT_0_SET_VAL);
+	driverdt->writereg(pd, LPDDR4_PHY_REGS, DDRSS_PHY_1306__REG_OFFS, regval);
 
-	/* Configure the DDR controller (and not the PI) to issue a PWRUP SREFRESH EXIT */
-	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x000001A8 / 4), &regval);
-	regval = (regval | (0x1));
-	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x000001A8 / 4), regval);
+	/*
+	 * PWRUP_SREFRESH_EXIT: set to 1 so the controller (not PI)
+	 * issues the power-up self-refresh exit command.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, DDRSS_CTL_106__REG_OFFS, &regval);
+	regval = (regval | (CTL_PWRUP_SREFRESH_EXIT_EN_BIT));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, DDRSS_CTL_106__REG_OFFS, regval);
 
-	/* PI_PWRUP_SREFRESH_EXIT = 0 */
-	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00002218 / 4), &regval);
-	regval = (regval & 0x0);
-	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00002218 / 4), regval);
+	/*
+	 * PI_PWRUP_SREFRESH_EXIT: clear to 0 so the PI does not issue
+	 * a second self-refresh exit
+	 */
+	driverdt->readreg(pd, LPDDR4_PHY_INDEP_REGS, DDRSS_PI_134__REG_OFFS, &regval);
+	regval = (regval & ~(PI_PWRUP_SREFRESH_EXIT_EN_BIT));
+	driverdt->writereg(pd, LPDDR4_PHY_INDEP_REGS, DDRSS_PI_134__REG_OFFS, regval);
 
-	/*  PI_DRAM_INIT_EN = 0 */
-	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00002228 / 4), &regval);
-	regval = (regval & (0xFFFFFEFF));
-	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00002228 / 4), regval);
+	/*
+	 * PI_DRAM_INIT_EN: clear to 0 to skip DRAM re-initialisation during
+	 * PI start - memory contents must be preserved.
+	 */
+	driverdt->readreg(pd, LPDDR4_PHY_INDEP_REGS, DDRSS_PI_138__REG_OFFS, &regval);
+	regval = (regval & ~(PI_DRAM_INIT_EN_BIT));
+	driverdt->writereg(pd, LPDDR4_PHY_INDEP_REGS, DDRSS_PI_138__REG_OFFS, regval);
 
-	/* PI_DFI_PHYMSTR_STATE_SEL_R = 1 */
-	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00002018 / 4), &regval);
-	regval = (regval | (0x1 << 8));
-	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00002018 / 4), regval);
+	/*
+	 * PI_DFI_PHYMSTR_STATE_SEL_R: set to 1 to select the PHY master
+	 * state machine path required for resume.
+	 */
+	driverdt->readreg(pd, LPDDR4_PHY_INDEP_REGS, DDRSS_PI_6__REG_OFFS, &regval);
+	regval = (regval | PI_DFI_PHYMSTR_STATE_SREF_VAL);
+	driverdt->writereg(pd, LPDDR4_PHY_INDEP_REGS, DDRSS_PI_6__REG_OFFS, regval);
 
-	/* PHY_INDEP_INIT_MODE = 0 */
-	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00000054 / 4), &regval);
-	regval = (regval & (0xFFFFFEFF));
-	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00000054 / 4), regval);
+	/*
+	 * PHY_INDEP_INIT_MODE: clear to 0 so the PHY does not enter
+	 * independent initialisation mode on start.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, DDRSS_CTL_21__REG_OFFS, &regval);
+	regval = (regval & ~(CTL_PHY_INDEP_INIT_MODE_BIT));
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, DDRSS_CTL_21__REG_OFFS, regval);
 
-	/* PHY_INDEP_TRAIN_MODE = 1 */
-	driverdt->readreg(pd, LPDDR4_CTL_REGS, (0x00000050 / 4), &regval);
-	regval = (regval | (0x1 << 24));
-	driverdt->writereg(pd, LPDDR4_CTL_REGS, (0x00000050 / 4), regval);
+	/*
+	 * PHY_INDEP_TRAIN_MODE: set to 1 to enable independent PHY
+	 * training mode during the resume sequence.
+	 */
+	driverdt->readreg(pd, LPDDR4_CTL_REGS, DDRSS_CTL_20__REG_OFFS, &regval);
+	regval = (regval | CTL_PHY_INDEP_TRAIN_MODE_BIT);
+	driverdt->writereg(pd, LPDDR4_CTL_REGS, DDRSS_CTL_20__REG_OFFS, regval);
 
-	/* De-assert the data_retention signal */
-	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL), 0x0);
-	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL), (0x1U << 31));
-	while ((mmio_read_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL)) & 0x80000000) ==  0x0) {
+/* De-assert the DDR32SS data_retention signal to release DDR from retention */
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL),
+		      DDR32SS_PMCTRL_DATA_RETENTION_DEACTIVATED);
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL),
+		      (DDR32SS_PMCTRL_LATCH_OPEN << DDR32SS_PMCTRL_LATCH_LOAD_SHIFT));
+	while ((mmio_read_32(WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL) &
+		DDR32SS_PMCTRL_LATCH_MASK) == DDR32SS_PMCTRL_LATCH_CLOSED) {
 	}
-	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL), 0x0);
+	mmio_write_32((WKUP_CTRL_MMR_SEC_4_BASE + DDR32SS_PMCTRL),
+		      DDR32SS_PMCTRL_DATA_RETENTION_DEACTIVATED);
 }
 
 /*************************************************************************
