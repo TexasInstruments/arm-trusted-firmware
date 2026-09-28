@@ -162,9 +162,13 @@ static void am62l_pwr_down_domain(const psci_power_state_t *target_state)
 
 	core = plat_my_core_pos();
 
-	VERBOSE("%s: A53 CORE: %d OFF\n", __func__, core);
-	ti_device_id_drop_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0);
-	am62l_core_pwr_domain_off(core);
+	if ((core == 0) && (am62l_lpm_state != TI_K3_SLEEP_MODE_INVALID)) {
+		k3low_suspend_to_ram(am62l_lpm_state);
+	} else {
+		VERBOSE("%s: A53 CORE: %d OFF\n", __func__, core);
+		ti_device_id_drop_power_up_ref(AM62LX_DEV_COMPUTE_CLUSTER0);
+		am62l_core_pwr_domain_off(core);
+	}
 }
 
 void am62l_pwr_domain_on_finish(const psci_power_state_t *target_state)
@@ -267,7 +271,6 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 {
 	uint32_t core;
 	uint32_t proc_id;
-	uint32_t mode = 0U;
 	uint64_t context_save_addr = TIFS_LPM_SAVE_CTX;
 	uint32_t timeout_core_wfi = CORE_OFF_POLL_TIMEOUT;
 	uint32_t core_1_mdstat_ptr = MAIN_PSC_MDSTAT_BASE +
@@ -304,9 +307,10 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 	}
 
 	if (in_s2idle[core] == true) {
-		mode = am62l_lpm_state;
 		k3_gic_its_save();
-		INFO("%s: mode = %d\n", __func__, mode);
+		INFO("%s: mode = %d\n", __func__, am62l_lpm_state);
+	} else {
+		am62l_lpm_state = TI_K3_SLEEP_MODE_DEEP_SLEEP;
 	}
 
 	proc_id = PLAT_PROC_START_ID + core;
@@ -318,13 +322,12 @@ static void am62l_pwr_domain_suspend(const psci_power_state_t *target_state)
 	INFO("Started Suspend Sequence in ATF\n");
 	/* Isolate the I/Os to allow I/O Daisy chain wakeup */
 	k3low_lpm_set_io_isolation(true);
-	k3low_lpm_config_magic_words(mode);
-	ti_sci_prepare_sleep(mode, context_save_addr, 0);
+	k3low_lpm_config_magic_words(am62l_lpm_state);
+	ti_sci_prepare_sleep(am62l_lpm_state, context_save_addr, 0);
 	INFO("sent prepare message\n");
 	k3low_config_wake_sources(true);
-	ti_sci_enter_sleep(proc_id, mode, am62l_sec_entrypoint);
+	ti_sci_enter_sleep(proc_id, am62l_lpm_state, am62l_sec_entrypoint);
 	INFO("sent enter sleep message\n");
-	k3low_suspend_to_ram(mode);
 }
 
 static void am62l_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
