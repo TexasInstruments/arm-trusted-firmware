@@ -1708,6 +1708,9 @@ __section(".const.devgroup.MAIN") = {
 			DEV_ID_NONE,
 		},
 		.flags = LPSC_MODULE_EXISTS|LPSC_DEPENDS,
+		.clock_dep = {
+			CLK_AM62LX_POSTDIV4_16FF_MAIN_0_HSDIVOUT9_CLK,
+		},
 	},
 	[AM62LX_PSC_LPSC_LPSC_MAIN_MCUSS0_CORE0] = {
 		.powerdomain = AM62LX_PSC_PD_PD_MCUSS0,
