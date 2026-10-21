@@ -1708,6 +1708,9 @@ __section(".const.devgroup.MAIN") = {
 			DEV_ID_NONE,
 		},
 		.flags = LPSC_MODULE_EXISTS|LPSC_DEPENDS,
+		.clock_dep = {
+			CLK_AM62LX_POSTDIV4_16FF_MAIN_0_HSDIVOUT9_CLK,
+		},
 	},
 	[AM62LX_PSC_LPSC_LPSC_MAIN_MCUSS0_CORE0] = {
 		.powerdomain = AM62LX_PSC_PD_PD_MCUSS0,
@@ -2280,8 +2283,6 @@ am62lx_dev_usb2ss_16ffc_main_0 __section(".const.devgroup.MAIN") = {
 		.pd = AM62LX_PSC_PD_GP_CORE_CTL,
 		.mod = AM62LX_PSC_LPSC_LPSC_MAIN_GP_USB0,
 	},
-	.dev_clk_idx = AM62LX_DEV_USB2SS_16FFC_MAIN_0_CLOCKS,
-	.n_clocks = 11,
 	.pm_devgrp = PM_DEVGRP_00,
 };
 static const struct ti_dev_data
@@ -2291,8 +2292,6 @@ am62lx_dev_usb2ss_16ffc_main_1 __section(".const.devgroup.MAIN") = {
 		.pd = AM62LX_PSC_PD_GP_CORE_CTL,
 		.mod = AM62LX_PSC_LPSC_LPSC_MAIN_GP_USB1,
 	},
-	.dev_clk_idx = AM62LX_DEV_USB2SS_16FFC_MAIN_1_CLOCKS,
-	.n_clocks = 11,
 	.pm_devgrp = PM_DEVGRP_00,
 };
 static const struct ti_dev_data
@@ -2418,6 +2417,8 @@ am62lx_dev_main_usb0_iso_VD __section(".const.devgroup.MAIN") = {
 		.pd = AM62LX_PSC_PD_GP_CORE_CTL,
 		.mod = AM62LX_PSC_LPSC_LPSC_MAIN_GP_USB0_ISO_N,
 	},
+	.dev_clk_idx = AM62LX_DEV_USB2SS_16FFC_MAIN_0_CLOCKS,
+	.n_clocks = 11,
 	.pm_devgrp = PM_DEVGRP_00,
 };
 static const struct ti_dev_data
@@ -2427,6 +2428,8 @@ am62lx_dev_main_usb1_iso_VD __section(".const.devgroup.MAIN") = {
 		.pd = AM62LX_PSC_PD_GP_CORE_CTL,
 		.mod = AM62LX_PSC_LPSC_LPSC_MAIN_GP_USB1_ISO_N,
 	},
+	.dev_clk_idx = AM62LX_DEV_USB2SS_16FFC_MAIN_1_CLOCKS,
+	.n_clocks = 11,
 	.pm_devgrp = PM_DEVGRP_00,
 };
 static const struct ti_dev_data
