@@ -222,11 +222,6 @@ void am62l_standby_sequence()
 	/*
 	 * Standby PLL scaling:
 	 *
-	 * PLL0_HSDIVOUT8 (USB, MCASP, DPHY clock): scaled down to 25 MHz
-	 *   (hsdiv = 0x27). These peripherals are not actively used during
-	 *   standby but their LPSC may remain enabled, so the clock is kept
-	 *   alive at a bypass clock rate rather than fully gated.
-	 *
 	 * PLL0_HSDIVOUT9 (debug trace clock): clock output disabled.
 	 *   Debug/trace activity is not required during standby, making this
 	 *   a safe power saving.
@@ -237,7 +232,6 @@ void am62l_standby_sequence()
 	 *   supplying a clock to the core domain, allowing
 	 *   fast wake-up without a full PLL relock sequence.
 	 */
-	mmio_write_32(MAIN_PLL0_HSDIVx(8), (saved_state.pll_hsdiv_val[8] & ~(PLL_HSDIV_MASK)) | 0x27);
 	mmio_write_32(MAIN_PLL0_HSDIVx(9), (saved_state.pll_hsdiv_val[9] & ~(PLL_CLK_EN_MASK)));
 
 	/* Bypass MAIN PLL8 */
@@ -269,7 +263,6 @@ void am62l_deep_standby_sequence()
 	 * Other PLLs are scaled down or disabled as in the regular standby sequence.
 	 */
 	mmio_write_32(MAIN_PLL0_HSDIVx(0), (saved_state.pll_hsdiv_val[0] & ~(PLL_HSDIV_MASK)) | 0xf);
-	mmio_write_32(MAIN_PLL0_HSDIVx(8), (saved_state.pll_hsdiv_val[8] & ~(PLL_HSDIV_MASK)) | 0x27);
 	mmio_write_32(MAIN_PLL0_HSDIVx(9), (saved_state.pll_hsdiv_val[9] & ~(PLL_CLK_EN_MASK)));
 
 	/* Bypass MAIN PLL8 */
