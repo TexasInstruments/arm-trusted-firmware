@@ -34,7 +34,10 @@
 #define MAIN_PLL8_BASE		MAIN_PLL_MMR_CFG_BASE + 0x1000 * 8
 #define MAIN_PLL8_CTRL		MAIN_PLL8_BASE + 0x20
 
-#define PLL_COUNT_STBY		11
+#define PLL0_HSDIVOUT0_IDX	0
+#define PLL0_HSDIVOUT9_IDX	1
+#define PLL8_IDX		2
+#define PLL_COUNT_STBY		3
 
 #define LPSC_ADDR(lpsc_id)	MAIN_PSC_MDSTAT_BASE + (4 * lpsc_id)
 #define PSC_ADDR(psc_id)	MAIN_PSC_PDSTAT_BASE + (4 * psc_id)
@@ -187,10 +190,9 @@ void set_main_psc_state(uint32_t pd_id, uint32_t md_id, uint32_t pd_state, uint3
 void am62l_standby_save_state()
 {
 	/* Save PLL values */
-	for (int i = 0; i < PLL_COUNT_STBY - 1; i++) {
-		saved_state.pll_hsdiv_val[i] = mmio_read_32(MAIN_PLL0_HSDIVx(i));
-	}
-	saved_state.pll_hsdiv_val[PLL_COUNT_STBY - 1] = mmio_read_32(MAIN_PLL8_CTRL);
+	saved_state.pll_hsdiv_val[PLL0_HSDIVOUT0_IDX] = mmio_read_32(MAIN_PLL0_HSDIVx(0));
+	saved_state.pll_hsdiv_val[PLL0_HSDIVOUT9_IDX] = mmio_read_32(MAIN_PLL0_HSDIVx(9));
+	saved_state.pll_hsdiv_val[PLL8_IDX] = mmio_read_32(MAIN_PLL8_CTRL);
 
 	/* Save LPSC values */
 	for (int i = 0; i < LPSC_COUNT_STBY; i++) {
@@ -225,11 +227,6 @@ void am62l_standby_sequence()
 	/*
 	 * Standby PLL scaling:
 	 *
-	 * PLL0_HSDIVOUT8 (USB, MCASP, DPHY clock): scaled down to 25 MHz
-	 *   (hsdiv = 0x27). These peripherals are not actively used during
-	 *   standby but their LPSC may remain enabled, so the clock is kept
-	 *   alive at a bypass clock rate rather than fully gated.
-	 *
 	 * PLL0_HSDIVOUT9 (debug trace clock): clock output disabled.
 	 *   Debug/trace activity is not required during standby, making this
 	 *   a safe power saving.
@@ -240,11 +237,10 @@ void am62l_standby_sequence()
 	 *   supplying a clock to the core domain, allowing
 	 *   fast wake-up without a full PLL relock sequence.
 	 */
-	mmio_write_32(MAIN_PLL0_HSDIVx(8), (saved_state.pll_hsdiv_val[8] & ~(PLL_HSDIV_MASK)) | 0x27);
-	mmio_write_32(MAIN_PLL0_HSDIVx(9), (saved_state.pll_hsdiv_val[9] & ~(PLL_CLK_EN_MASK)));
+	mmio_write_32(MAIN_PLL0_HSDIVx(9), (saved_state.pll_hsdiv_val[PLL0_HSDIVOUT9_IDX] & ~(PLL_CLK_EN_MASK)));
 
 	/* Bypass MAIN PLL8 */
-	mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[10] | PLL_BYP_EN_MASK);
+	mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[PLL8_IDX] | PLL_BYP_EN_MASK);
 
 	/* Enable AUTO CLOCK GATING */
 	mmio_write_32(WKUP_CTRL_MMR_CFG5_CLKGATE_CTRL0, EN_AUTO_CLKGATE);
@@ -273,12 +269,11 @@ void am62l_deep_standby_sequence()
 	 *
 	 * Other PLLs are scaled down or disabled as in the regular standby sequence.
 	 */
-	mmio_write_32(MAIN_PLL0_HSDIVx(0), (saved_state.pll_hsdiv_val[0] & ~(PLL_HSDIV_MASK)) | 0xf);
-	mmio_write_32(MAIN_PLL0_HSDIVx(8), (saved_state.pll_hsdiv_val[8] & ~(PLL_HSDIV_MASK)) | 0x27);
-	mmio_write_32(MAIN_PLL0_HSDIVx(9), (saved_state.pll_hsdiv_val[9] & ~(PLL_CLK_EN_MASK)));
+	mmio_write_32(MAIN_PLL0_HSDIVx(0), (saved_state.pll_hsdiv_val[PLL0_HSDIVOUT0_IDX] & ~(PLL_HSDIV_MASK)) | 0xf);
+	mmio_write_32(MAIN_PLL0_HSDIVx(9), (saved_state.pll_hsdiv_val[PLL0_HSDIVOUT9_IDX] & ~(PLL_CLK_EN_MASK)));
 
 	/* Bypass MAIN PLL8 */
-	mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[10] | PLL_BYP_EN_MASK);
+	mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[PLL8_IDX] | PLL_BYP_EN_MASK);
 
 	/* Enable DDR Auto self refresh */
 	for (int i = 0; i < DDR_CTL_COUNT_DEEP_STBY; i++) {
@@ -306,10 +301,9 @@ void am62l_standby_restore_state()
 	}
 
 	/* Restore PLL */
-	for (int i = 0;i < PLL_COUNT_STBY - 1;i++) {
-		mmio_write_32(MAIN_PLL0_HSDIVx(i), saved_state.pll_hsdiv_val[i]);
-	}
-	mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[PLL_COUNT_STBY - 1]);
+	mmio_write_32(MAIN_PLL0_HSDIVx(0), saved_state.pll_hsdiv_val[PLL0_HSDIVOUT0_IDX]);
+	mmio_write_32(MAIN_PLL0_HSDIVx(9), saved_state.pll_hsdiv_val[PLL0_HSDIVOUT9_IDX]);
+	mmio_write_32(MAIN_PLL8_CTRL, saved_state.pll_hsdiv_val[PLL8_IDX]);
 
 	/* Restore LPSC states */
 	for (int i = 0; i < LPSC_COUNT_STBY; i++) {
