@@ -161,7 +161,7 @@ int32_t ti_devices_init(void)
 	if (progress) {
 		if (devices_rw) {
 			/* Only necessary after deferred initialization */
-			/* ti_soc_device_init_complete(); */
+			ti_soc_device_init_complete();
 		}
 
 		if (errors == false) {
