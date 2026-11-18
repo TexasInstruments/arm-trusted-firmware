@@ -12,7 +12,6 @@
 
 #include <arch_helpers.h>
 #include <common/debug.h>
-#include <drivers/delay_timer.h>
 #include <lib/mmio.h>
 #include <lib/utils.h>
 #include <lib/utils_def.h>
@@ -30,6 +29,9 @@
 #define TI_MAILBOX_FIFO_STATUS	UL(0x80)
 #define TI_MAILBOX_MSG_STATUS		UL(0xc0)
 
+/* 10 second timeout for rx mailbox polling */
+#define TI_MAILBOX_RX_TIMEOUT_US	10000000U
+
 /*
  * Function to poll for mailbox rx messages
  * IRQ model is currently not in scope of this driver
@@ -37,19 +39,17 @@
 static int8_t ti_mailbox_poll_rx_status(void)
 {
 	uint32_t num_messages_pending = 0U;
-	uint32_t retry_count = 1000U;
+	uint64_t tick_start = read_cntpct_el0();
+	uint64_t timeout_ticks = ((uint64_t)TI_MAILBOX_RX_TIMEOUT_US * SYS_COUNTER_FREQ_IN_TICKS)
+				 / 1000000U;
 
-	/*
-	 * Keep polling till we get a message for 1000 times
-	 * with intervals of 10 milliseconds.
-	 */
 	while (num_messages_pending == 0U) {
 		num_messages_pending = mmio_read_32(TI_MAILBOX_RX_BASE + TI_MAILBOX_MSG_STATUS);
-		if (retry_count-- == 0U) {
+		if ((read_cntpct_el0() - tick_start) > timeout_ticks) {
 			return -ETIMEDOUT;
 		}
-		mdelay(10);
 	}
+
 	return 0;
 }
 
